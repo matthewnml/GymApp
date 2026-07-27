@@ -87,3 +87,10 @@ create policy "read all entries" on public.entries for select to authenticated u
 create policy "insert own entries" on public.entries for insert to authenticated with check (user_id = auth.uid());
 create policy "update own entries" on public.entries for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy "delete own entries" on public.entries for delete to authenticated using (user_id = auth.uid());
+
+-- ============================================================
+--  Realtime — powers live cross-user updates on the Today board
+--  (if it says "already a member", that's fine — ignore it)
+-- ============================================================
+alter publication supabase_realtime add table public.entries;
+alter publication supabase_realtime add table public.metrics;
