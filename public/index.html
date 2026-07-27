@@ -36,8 +36,10 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
 .btn.sm{width:auto;padding:8px 12px;font-size:13px;border-radius:10px}.btn.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
 .datebar{display:flex;align-items:center;gap:8px;margin-bottom:14px}
 .datebar .nav{width:40px;height:40px;border-radius:11px;background:var(--card);border:1px solid var(--line);color:var(--text);font-size:18px;display:grid;place-items:center}
-.datebar .dsel{flex:1;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:7px}
+.datebar .dsel{flex:1;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:7px;position:relative;cursor:pointer}
 .datebar .dsel .d1{font-weight:800;font-size:16px}.datebar .dsel .d2{font-size:12px;color:var(--muted)}
+.datebar .dsel .caret{color:var(--muted);font-size:12px;margin-left:5px;font-weight:400}
+.datepick{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer}
 .tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.5px;color:#043;background:var(--accent);border-radius:6px;padding:2px 6px;vertical-align:middle;margin-left:6px}
 .person{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}.person:first-child{border-top:none}
 .avatar{width:38px;height:38px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-weight:800;color:#052;background:var(--accent)}
@@ -107,11 +109,11 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
       <h1 id="viewTitle">Today</h1><div class="ver" id="appVer"></div><div class="who" id="whoami"></div>
     </div>
     <section id="todayView">
-      <div class="datebar"><button class="nav" id="tPrev">‹</button><div class="dsel"><div class="d1" id="tD1">—</div><div class="d2" id="tD2"></div></div><button class="nav" id="tNext">›</button></div>
+      <div class="datebar"><button class="nav" id="tPrev">‹</button><div class="dsel"><div class="d1" id="tD1">—</div><div class="d2" id="tD2"></div><input type="date" class="datepick" id="tPick"></div><button class="nav" id="tNext">›</button></div>
       <div class="card"><h2>Everyone · <span id="tCount">0</span> people</h2><div id="board"></div></div>
     </section>
     <section id="logView" class="hidden">
-      <div class="datebar"><button class="nav" id="lPrev">‹</button><div class="dsel"><div class="d1" id="lD1">—</div><div class="d2" id="lD2"></div></div><button class="nav" id="lNext">›</button></div>
+      <div class="datebar"><button class="nav" id="lPrev">‹</button><div class="dsel"><div class="d1" id="lD1">—</div><div class="d2" id="lD2"></div><input type="date" class="datepick" id="lPick"></div><button class="nav" id="lNext">›</button></div>
       <div class="card"><h2>Your entry</h2><div id="logFields"></div><button class="btn" id="saveBtn">Save</button><div class="savenote" id="saveNote"></div></div>
       <div class="card"><h2>Recent history</h2><div id="history"></div></div>
     </section>
@@ -252,9 +254,10 @@ const shift=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);ret
 
 $('#tPrev').onclick=()=>{tDate=shift(tDate,-1);loadBoard();};
 $('#tNext').onclick=()=>{tDate=shift(tDate,1);loadBoard();};
+$('#tPick').onchange=e=>{if(e.target.value){tDate=e.target.value;loadBoard();}};
 async function loadBoard(){
-  $('#tD1').innerHTML=fmtLong(tDate)+(tDate===todayISO()?'<span class="tag">TODAY</span>':'');
-  $('#tD2').textContent=tDate;
+  $('#tD1').innerHTML=fmtLong(tDate)+(tDate===todayISO()?'<span class="tag">TODAY</span>':'<span class="caret">▾</span>');
+  $('#tD2').textContent=tDate;$('#tPick').value=tDate;
   const [{data:profs},{data:ents}]=await Promise.all([
     sb.from('profiles').select('id,name'),
     sb.from('entries').select('user_id,values').eq('date',tDate)
@@ -277,10 +280,11 @@ async function loadBoard(){
 
 $('#lPrev').onclick=()=>{lDate=shift(lDate,-1);renderLog();};
 $('#lNext').onclick=()=>{lDate=shift(lDate,1);renderLog();};
+$('#lPick').onchange=e=>{if(e.target.value){lDate=e.target.value;renderLog();}};
 const entryFor=date=>MYENTRIES.find(e=>e.date===date);
 function renderLog(){
-  $('#lD1').innerHTML=fmtLong(lDate)+(lDate===todayISO()?'<span class="tag">TODAY</span>':'');
-  $('#lD2').textContent=lDate;
+  $('#lD1').innerHTML=fmtLong(lDate)+(lDate===todayISO()?'<span class="tag">TODAY</span>':'<span class="caret">▾</span>');
+  $('#lD2').textContent=lDate;$('#lPick').value=lDate;
   const e=entryFor(lDate),v=e?e.values:{};
   $('#logFields').innerHTML=METRICS.map(m=>{
     if(m.type==='text')return `<label class="field"><span>${esc(m.label)}</span><textarea class="inp" data-k="${m.key}" rows="2">${esc(v[m.key]||'')}</textarea></label>`;
