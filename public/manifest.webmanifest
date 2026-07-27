@@ -1,0 +1,16 @@
+{
+  "name": "GymApp Health Tracker",
+  "short_name": "GymApp",
+  "description": "Shared daily health log — weight, calories, workouts and more.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1513",
+  "theme_color": "#0f9e83",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

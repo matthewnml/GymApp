@@ -1,0 +1,9 @@
+# local-only / secrets — never commit
+node_modules/
+data.db
+data.db-shm
+data.db-wal
+data.json
+config.json
+*.log
+.DS_Store

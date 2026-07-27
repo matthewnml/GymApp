@@ -1,0 +1,366 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GymApp">
+<meta name="theme-color" content="#0e1513" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f6f3" media="(prefers-color-scheme: light)">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+<title>GymApp — health log</title>
+
+<style>
+:root{--bg:#0e1513;--card:#16201d;--card2:#1c2724;--line:#2a3a35;--text:#e8f0ed;--muted:#8ba39c;--accent:#12b892;--accent2:#0f9e83;--danger:#e26d6d;--shadow:rgba(0,0,0,.35);}
+@media (prefers-color-scheme: light){:root{--bg:#f3f6f3;--card:#fff;--card2:#eef3f1;--line:#dbe5e1;--text:#0f1a17;--muted:#5c716b;--accent:#0f9e83;--accent2:#0c8770;--danger:#c94b4b;--shadow:rgba(0,0,0,.08);}}
+:root[data-theme="dark"]{--bg:#0e1513;--card:#16201d;--card2:#1c2724;--line:#2a3a35;--text:#e8f0ed;--muted:#8ba39c;--accent:#12b892;--accent2:#0f9e83;}
+:root[data-theme="light"]{--bg:#f3f6f3;--card:#fff;--card2:#eef3f1;--line:#dbe5e1;--text:#0f1a17;--muted:#5c716b;--accent:#0f9e83;--accent2:#0c8770;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);}
+h1,h2,h3{margin:0}button{font-family:inherit;cursor:pointer}input,select,textarea{font-family:inherit;font-size:16px}
+.wrap{max-width:640px;margin:0 auto;padding:14px 14px 96px}
+.top{display:flex;align-items:center;gap:10px;padding:6px 2px 14px}
+.top .mark{width:30px;height:30px;border-radius:8px;background:var(--accent2);display:grid;place-items:center;flex:0 0 auto}
+.top .mark svg{width:20px;height:20px}.top h1{font-size:18px;letter-spacing:.2px}.top .who{margin-left:auto;font-size:13px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 1px 3px var(--shadow);margin-bottom:14px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px;font-weight:700}
+.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.field{display:block;margin-bottom:12px}label.field span{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600}
+.inp{width:100%;padding:12px;border-radius:11px;border:1px solid var(--line);background:var(--card2);color:var(--text);outline:none}
+.inp:focus{border-color:var(--accent)}textarea.inp{resize:vertical;min-height:60px}
+.btn{border:none;border-radius:12px;padding:13px 16px;font-size:15px;font-weight:700;background:var(--accent);color:#052;width:100%}
+.btn:active{transform:translateY(1px)}.btn.sec{background:var(--card2);color:var(--text);border:1px solid var(--line)}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:600}
+.btn.sm{width:auto;padding:8px 12px;font-size:13px;border-radius:10px}.btn.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
+.datebar{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.datebar .nav{width:40px;height:40px;border-radius:11px;background:var(--card);border:1px solid var(--line);color:var(--text);font-size:18px;display:grid;place-items:center}
+.datebar .dsel{flex:1;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:7px}
+.datebar .dsel .d1{font-weight:800;font-size:16px}.datebar .dsel .d2{font-size:12px;color:var(--muted)}
+.tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.5px;color:#043;background:var(--accent);border-radius:6px;padding:2px 6px;vertical-align:middle;margin-left:6px}
+.person{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}.person:first-child{border-top:none}
+.avatar{width:38px;height:38px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-weight:800;color:#052;background:var(--accent)}
+.person .nm{font-weight:700}.person .vals{font-size:13px;color:var(--muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.person .vals b{color:var(--text);font-weight:700}.person.me .nm:after{content:"you";font-size:10px;font-weight:800;color:var(--accent2);margin-left:6px;letter-spacing:.5px}
+.empty{color:var(--muted);font-size:13px;font-style:italic}
+.chartcard svg{width:100%;height:180px;display:block}
+.statrow{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.stat{flex:1;min-width:70px;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+.stat .k{font-size:11px;color:var(--muted);font-weight:600}.stat .v{font-size:17px;font-weight:800;margin-top:2px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{padding:8px 12px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:13px;font-weight:700}
+.chip.on{background:var(--accent);color:#052;border-color:var(--accent)}
+.hitem{display:flex;gap:10px;padding:11px 0;border-top:1px solid var(--line);align-items:baseline}.hitem:first-child{border-top:none}
+.hitem .hd{font-weight:700;width:88px;flex:0 0 auto}.hitem .hv{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:3px 12px}.hitem .hv b{color:var(--text)}
+.nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom));z-index:20}
+.nav button{flex:1;background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:3px}
+.nav button svg{width:22px;height:22px}.nav button.on{color:var(--accent)}
+.auth{max-width:380px;margin:8vh auto 0;padding:0 18px}
+.auth .mark{width:60px;height:60px;border-radius:16px;background:var(--accent2);display:grid;place-items:center;margin:0 auto 14px}
+.auth .mark svg{width:38px;height:38px}.auth h1{text-align:center;font-size:22px;margin-bottom:4px}
+.auth p.sub{text-align:center;color:var(--muted);font-size:13px;margin:0 0 20px}
+.err{color:var(--danger);font-size:13px;min-height:18px;margin:2px 2px 8px}
+.note{text-align:center;margin-top:14px;font-size:13px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);background:var(--accent);color:#042;padding:10px 16px;border-radius:12px;font-weight:700;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30}
+.toast.show{opacity:1}.hidden{display:none !important}
+.savenote{font-size:12px;color:var(--muted);margin-top:6px;min-height:15px}
+.gearrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line)}.gearrow:first-child{border-top:none}
+.gearrow .gl{flex:1}.gearrow .gl b{display:block}.gearrow .gl small{color:var(--muted)}
+.center{display:grid;place-items:center;min-height:70vh;color:var(--muted)}
+.spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+
+<div id="loadView" class="center"><div class="spin"></div></div>
+
+<div id="authView" class="auth hidden">
+  <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></div>
+  <h1>Welcome back</h1>
+  <p class="sub">Log in to your health tracker</p>
+  <div class="card">
+    <div class="err" id="authErr"></div>
+    <label class="field"><span>Email</span><input id="aEmail" class="inp" type="email" autocomplete="username" placeholder="you@email.com"></label>
+    <label class="field"><span>Password</span><input id="aPass" class="inp" type="password" autocomplete="current-password" placeholder="••••••"></label>
+    <button class="btn" id="loginBtn">Log in</button>
+    <button class="btn ghost" id="forgotBtn" style="margin-top:10px">Forgot password</button>
+  </div>
+  <div class="note">Accounts are invite-only. Ask the owner to add your email.</div>
+</div>
+
+<div id="setPwView" class="auth hidden">
+  <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></div>
+  <h1>Set up your account</h1>
+  <p class="sub">Choose your display name and a password</p>
+  <div class="card">
+    <div class="err" id="setErr"></div>
+    <label class="field"><span>Display name</span><input id="sName" class="inp" placeholder="e.g. Matthew"></label>
+    <label class="field"><span>New password</span><input id="sPass" class="inp" type="password" autocomplete="new-password" placeholder="min 6 characters"></label>
+    <button class="btn" id="setPwBtn">Save & continue</button>
+  </div>
+</div>
+
+<div id="appView" class="hidden">
+  <div class="wrap">
+    <div class="top">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></div>
+      <h1 id="viewTitle">Today</h1><div class="who" id="whoami"></div>
+    </div>
+    <section id="todayView">
+      <div class="datebar"><button class="nav" id="tPrev">‹</button><div class="dsel"><div class="d1" id="tD1">—</div><div class="d2" id="tD2"></div></div><button class="nav" id="tNext">›</button></div>
+      <div class="card"><h2>Everyone · <span id="tCount">0</span> people</h2><div id="board"></div></div>
+    </section>
+    <section id="logView" class="hidden">
+      <div class="datebar"><button class="nav" id="lPrev">‹</button><div class="dsel"><div class="d1" id="lD1">—</div><div class="d2" id="lD2"></div></div><button class="nav" id="lNext">›</button></div>
+      <div class="card"><h2>Your entry</h2><div id="logFields"></div><button class="btn" id="saveBtn">Save</button><div class="savenote" id="saveNote"></div></div>
+      <div class="card"><h2>Recent history</h2><div id="history"></div></div>
+    </section>
+    <section id="trendsView" class="hidden">
+      <div class="chips" id="metricChips"></div>
+      <div class="card chartcard"><h2 id="chartTitle">Trend</h2><svg id="chart" viewBox="0 0 320 180" preserveAspectRatio="none"></svg><div class="statrow" id="chartStats"></div></div>
+    </section>
+    <section id="moreView" class="hidden">
+      <div class="card"><h2>Display name</h2><div class="grid" style="grid-template-columns:1fr auto;align-items:end"><label class="field" style="margin:0"><span>Your name on the board</span><input id="dispName" class="inp"></label><button class="btn sm sec" id="saveName">Save</button></div></div>
+      <div class="card"><h2>Custom metrics</h2><div id="metricList"></div>
+        <div style="border-top:1px solid var(--line);margin-top:8px;padding-top:12px">
+          <div class="grid"><label class="field"><span>Name</span><input id="mLabel" class="inp" placeholder="e.g. Sleep"></label><label class="field"><span>Unit (optional)</span><input id="mUnit" class="inp" placeholder="e.g. hrs"></label></div>
+          <label class="field"><span>Type</span><select id="mType" class="inp"><option value="number">Number (shows in charts)</option><option value="text">Text / note</option></select></label>
+          <button class="btn sec" id="addMetric">Add metric</button>
+        </div>
+      </div>
+      <div class="card"><h2>Appearance</h2><button class="btn ghost" id="themeBtn">Toggle light / dark</button></div>
+      <div class="card"><h2>Account</h2><div class="muted" id="acctInfo" style="margin-bottom:10px"></div><button class="btn danger" id="logoutBtn">Log out</button></div>
+    </section>
+  </div>
+  <nav class="nav">
+    <button data-v="today" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>Today</button>
+    <button data-v="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Log</button>
+    <button data-v="trends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Trends</button>
+    <button data-v="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 14H3.5a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 5 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 10 3.6V3.5a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 20.4 9H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>More</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://ptboagtyobnalvnxhuco.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0Ym9hZ3R5b2JuYWx2bnhodWNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxMTM3NTMsImV4cCI6MjEwMDY4OTc1M30.AB-4bJhMX-fCa3KlR1iWEhUqvoyczkhAKIDx-DW7YRM';
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const todayISO=()=>iso(new Date());
+const fmtLong=s=>new Date(s+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+const fmtShort=s=>new Date(s+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+const initials=n=>n.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600);}
+function show(id){['loadView','authView','setPwView','appView'].forEach(v=>$('#'+v).classList.toggle('hidden',v!==id));}
+
+let ME=null, METRICS=[], MYENTRIES=[], view='today';
+let tDate=todayISO(), lDate=todayISO(), chartKey=null, pollTimer=null, rtChannel=null;
+
+(function(){const s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s);})();
+$('#themeBtn').onclick=()=>{const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);localStorage.setItem('theme',nx);};
+
+const initialHash=window.location.hash||'';
+let pendingRecovery=/type=(recovery|invite)/.test(initialHash);
+
+sb.auth.onAuthStateChange((event,session)=>{
+  if(event==='PASSWORD_RECOVERY'){pendingRecovery=true;show('setPwView');return;}
+  if(event==='SIGNED_IN'){if(pendingRecovery){show('setPwView');}else if(session){afterLogin(session);}}
+  if(event==='SIGNED_OUT'){show('authView');}
+});
+
+async function boot(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(pendingRecovery){show('setPwView');return;}
+  if(session)afterLogin(session);else show('authView');
+}
+
+$('#loginBtn').onclick=async()=>{
+  const email=$('#aEmail').value.trim(),password=$('#aPass').value;$('#authErr').textContent='';
+  if(!email||!password){$('#authErr').textContent='Enter your email and password.';return;}
+  $('#loginBtn').textContent='Logging in…';$('#loginBtn').disabled=true;
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  $('#loginBtn').textContent='Log in';$('#loginBtn').disabled=false;
+  if(error)$('#authErr').textContent=error.message;
+};
+$('#aPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginBtn').click();});
+$('#forgotBtn').onclick=async()=>{
+  const email=$('#aEmail').value.trim();$('#authErr').textContent='';
+  if(!email){$('#authErr').textContent='Type your email above first.';return;}
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin});
+  if(error)$('#authErr').textContent=error.message;else toast('Reset link sent — check your email');
+};
+$('#setPwBtn').onclick=async()=>{
+  const name=$('#sName').value.trim(),password=$('#sPass').value;$('#setErr').textContent='';
+  if(name.length<2){$('#setErr').textContent='Enter a display name.';return;}
+  if(password.length<6){$('#setErr').textContent='Password must be at least 6 characters.';return;}
+  $('#setPwBtn').disabled=true;
+  const {error}=await sb.auth.updateUser({password,data:{name}});
+  if(error){$('#setErr').textContent=error.message;$('#setPwBtn').disabled=false;return;}
+  const {data:{user}}=await sb.auth.getUser();
+  if(user)await sb.from('profiles').upsert({id:user.id,name});
+  pendingRecovery=false;history.replaceState(null,'',window.location.pathname);
+  const {data:{session}}=await sb.auth.getSession();$('#setPwBtn').disabled=false;
+  if(session)afterLogin(session);
+};
+
+async function afterLogin(session){
+  ME={id:session.user.id,email:session.user.email,name:''};
+  let {data:prof}=await sb.from('profiles').select('name').eq('id',ME.id).maybeSingle();
+  if(!prof){await sb.from('profiles').upsert({id:ME.id,name:ME.email.split('@')[0]});prof={name:ME.email.split('@')[0]};}
+  ME.name=prof.name;
+  await loadMetrics();
+  $('#whoami').textContent=ME.name;$('#dispName').value=ME.name;
+  $('#acctInfo').innerHTML=`Signed in as <b>${esc(ME.email)}</b>`;
+  chartKey=(METRICS.find(m=>m.type==='number')||{}).key||null;
+  show('appView');subscribeRealtime();switchView('today');loadMine();
+}
+
+async function loadMetrics(){const {data}=await sb.from('metrics').select('*').order('ord');METRICS=(data||[]).map(m=>({...m,chart:!!m.chart,builtin:!!m.builtin}));}
+async function loadMine(){const {data}=await sb.from('entries').select('date,values,updated').eq('user_id',ME.id).order('date',{ascending:false});MYENTRIES=data||[];if(view==='log')renderLog();if(view==='trends')renderTrends();}
+
+function subscribeRealtime(){
+  if(rtChannel)sb.removeChannel(rtChannel);
+  rtChannel=sb.channel('rt')
+    .on('postgres_changes',{event:'*',schema:'public',table:'entries'},payload=>{
+      if(view==='today')loadBoard();
+      const uid=(payload.new&&payload.new.user_id)||(payload.old&&payload.old.user_id);
+      if(uid===ME.id)loadMine();
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'metrics'},()=>refreshMetrics())
+    .subscribe();
+}
+async function refreshMetrics(){await loadMetrics();if(view==='log')renderLog();if(view==='more')renderMetricList();if(view==='trends')renderTrends();}
+
+$$('.nav button').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
+function switchView(v){
+  view=v;$$('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  ['today','log','trends','more'].forEach(x=>$('#'+x+'View').classList.toggle('hidden',x!==v));
+  $('#viewTitle').textContent={today:'Today',log:'My Log',trends:'Trends',more:'More'}[v];
+  clearInterval(pollTimer);
+  if(v==='today'){loadBoard();pollTimer=setInterval(loadBoard,15000);}
+  if(v==='log')renderLog();if(v==='trends')renderTrends();if(v==='more')renderMetricList();
+}
+const shift=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return iso(d);};
+
+$('#tPrev').onclick=()=>{tDate=shift(tDate,-1);loadBoard();};
+$('#tNext').onclick=()=>{tDate=shift(tDate,1);loadBoard();};
+async function loadBoard(){
+  $('#tD1').innerHTML=fmtLong(tDate)+(tDate===todayISO()?'<span class="tag">TODAY</span>':'');
+  $('#tD2').textContent=tDate;
+  const [{data:profs},{data:ents}]=await Promise.all([
+    sb.from('profiles').select('id,name'),
+    sb.from('entries').select('user_id,values').eq('date',tDate)
+  ]);
+  const byId={};(ents||[]).forEach(e=>byId[e.user_id]=e);
+  const board=(profs||[]).map(p=>({user:p,values:(byId[p.id]&&byId[p.id].values)||{},isMe:p.id===ME.id}))
+    .sort((a,b)=>a.isMe?-1:b.isMe?1:a.user.name.localeCompare(b.user.name));
+  $('#tCount').textContent=board.length;
+  const numMs=METRICS.filter(m=>m.type==='number'),txtMs=METRICS.filter(m=>m.type==='text');
+  $('#board').innerHTML=board.map(p=>{
+    const has=Object.keys(p.values).length>0;let vals='';
+    if(has){
+      vals=numMs.filter(m=>p.values[m.key]!=null).map(m=>`<span><b>${esc(p.values[m.key])}</b> ${esc(m.unit||m.label.toLowerCase())}</span>`).join('');
+      const notes=txtMs.filter(m=>p.values[m.key]).map(m=>esc(p.values[m.key])).join(' · ');
+      if(notes)vals+=`<span>${notes}</span>`;
+    }
+    return `<div class="person ${p.isMe?'me':''}"><div class="avatar">${esc(initials(p.user.name))}</div><div style="flex:1;min-width:0"><div class="nm">${esc(p.user.name)}</div><div class="vals">${has?vals:'<span class="empty">no entry yet</span>'}</div></div></div>`;
+  }).join('')||'<div class="empty">No one yet.</div>';
+}
+
+$('#lPrev').onclick=()=>{lDate=shift(lDate,-1);renderLog();};
+$('#lNext').onclick=()=>{lDate=shift(lDate,1);renderLog();};
+const entryFor=date=>MYENTRIES.find(e=>e.date===date);
+function renderLog(){
+  $('#lD1').innerHTML=fmtLong(lDate)+(lDate===todayISO()?'<span class="tag">TODAY</span>':'');
+  $('#lD2').textContent=lDate;
+  const e=entryFor(lDate),v=e?e.values:{};
+  $('#logFields').innerHTML=METRICS.map(m=>{
+    if(m.type==='text')return `<label class="field"><span>${esc(m.label)}</span><textarea class="inp" data-k="${m.key}" rows="2">${esc(v[m.key]||'')}</textarea></label>`;
+    const val=v[m.key]!=null?esc(v[m.key]):'';
+    return `<label class="field"><span>${esc(m.label)}${m.unit?' ('+esc(m.unit)+')':''}</span><input class="inp" data-k="${m.key}" type="number" inputmode="decimal" value="${val}"></label>`;
+  }).join('');
+  $('#saveNote').textContent=e?('Last saved '+new Date(e.updated).toLocaleString()):'No entry saved for this day yet.';
+  renderHistory();
+}
+$('#saveBtn').onclick=async()=>{
+  const body={};$$('#logFields [data-k]').forEach(el=>body[el.dataset.k]=el.value);
+  const values={};
+  for(const m of METRICS){const raw=body[m.key];
+    if(m.type==='number'){const n=(raw===''||raw==null||isNaN(Number(raw)))?null:Number(raw);if(n!==null)values[m.key]=n;}
+    else{const s=(raw==null?'':String(raw)).trim();if(s)values[m.key]=s;}}
+  $('#saveBtn').textContent='Saving…';$('#saveBtn').disabled=true;
+  let error;
+  if(Object.keys(values).length===0){({error}=await sb.from('entries').delete().eq('user_id',ME.id).eq('date',lDate));}
+  else{({error}=await sb.from('entries').upsert({user_id:ME.id,date:lDate,values,updated:new Date().toISOString()},{onConflict:'user_id,date'}));}
+  $('#saveBtn').textContent='Save';$('#saveBtn').disabled=false;
+  if(error){toast(error.message);return;}
+  toast('Saved');await loadMine();renderLog();
+};
+function renderHistory(){
+  const numMs=METRICS.filter(m=>m.type==='number');
+  const rows=MYENTRIES.slice(0,30).map(e=>{
+    const vals=numMs.filter(m=>e.values[m.key]!=null).map(m=>`<span><b>${esc(e.values[m.key])}</b> ${esc(m.unit||'')}</span>`).join('');
+    return `<div class="hitem"><div class="hd">${fmtShort(e.date)}</div><div class="hv">${vals||'<span class="empty">note only</span>'}</div></div>`;
+  }).join('');
+  $('#history').innerHTML=rows||'<div class="empty">Nothing logged yet.</div>';
+}
+
+function renderTrends(){
+  const numMs=METRICS.filter(m=>m.type==='number');
+  if(!numMs.length){$('#metricChips').innerHTML='';$('#chart').innerHTML='';$('#chartStats').innerHTML='<div class="empty">Add a number metric to see trends.</div>';return;}
+  if(!numMs.find(m=>m.key===chartKey))chartKey=numMs[0].key;
+  $('#metricChips').innerHTML=numMs.map(m=>`<button class="chip ${m.key===chartKey?'on':''}" data-k="${m.key}">${esc(m.label)}</button>`).join('');
+  $$('#metricChips .chip').forEach(c=>c.onclick=()=>{chartKey=c.dataset.k;renderTrends();});
+  const m=numMs.find(x=>x.key===chartKey);
+  const series=MYENTRIES.filter(e=>e.values[chartKey]!=null).map(e=>({date:e.date,val:Number(e.values[chartKey])})).sort((a,b)=>a.date<b.date?-1:1);
+  $('#chartTitle').textContent=m.label+(m.unit?' ('+m.unit+')':'');
+  drawChart(series);drawStats(series,m);
+}
+function drawChart(series){
+  const svg=$('#chart'),W=320,H=180,pad=8;
+  if(!series.length){svg.innerHTML='<text x="160" y="94" text-anchor="middle" fill="#8ba39c" font-size="12">No data yet</text>';return;}
+  const vals=series.map(s=>s.val);let mn=Math.min(...vals),mx=Math.max(...vals);if(mn===mx){mn-=1;mx+=1;}const rng=mx-mn,n=series.length;
+  const x=i=>pad+(n===1?(W-2*pad)/2:i*(W-2*pad)/(n-1)),y=v=>pad+(H-2*pad-4)-((v-mn)/rng)*(H-2*pad-4);
+  const pts=series.map((s,i)=>[x(i),y(s.val)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=line+` L ${pts[pts.length-1][0].toFixed(1)} ${H-pad} L ${pts[0][0].toFixed(1)} ${H-pad} Z`;
+  const dots=pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="var(--accent)"/>`).join('');
+  svg.innerHTML=`<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.28"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#g)"/><path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+}
+function drawStats(series,m){
+  if(!series.length){$('#chartStats').innerHTML='';return;}
+  const vals=series.map(s=>s.val),latest=vals[vals.length-1],avg=vals.reduce((a,b)=>a+b,0)/vals.length,change=vals.length>1?latest-vals[0]:0,u=m.unit?' '+m.unit:'';
+  const st=(k,v)=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  $('#chartStats').innerHTML=st('Latest',latest+u)+st('Average',(Math.round(avg*10)/10)+u)+st('Min',Math.min(...vals)+u)+st('Max',Math.max(...vals)+u)+st('Change',(change>=0?'+':'')+(Math.round(change*10)/10)+u);
+}
+
+function renderMetricList(){
+  $('#metricList').innerHTML=METRICS.map(m=>`<div class="gearrow"><div class="gl"><b>${esc(m.label)}</b><small>${m.type}${m.unit?' · '+esc(m.unit):''}${m.builtin?' · built-in':''}</small></div>${m.builtin?'':`<button class="btn sm danger" data-del="${m.key}">Remove</button>`}</div>`).join('');
+  $$('#metricList [data-del]').forEach(b=>b.onclick=async()=>{const {error}=await sb.from('metrics').delete().eq('key',b.dataset.del);if(error){toast(error.message);return;}await loadMetrics();toast('Removed');renderMetricList();});
+}
+$('#addMetric').onclick=async()=>{
+  const label=$('#mLabel').value.trim();if(!label){toast('Enter a name');return;}
+  const type=$('#mType').value;
+  let key=label.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,31);
+  if(!/^[a-z]/.test(key))key='m_'+key;
+  const {error}=await sb.from('metrics').insert({key,label,unit:$('#mUnit').value.trim(),type,chart:type==='number',builtin:false,ord:METRICS.length});
+  if(error){toast(error.message);return;}
+  $('#mLabel').value='';$('#mUnit').value='';await loadMetrics();toast('Metric added');renderMetricList();
+};
+$('#saveName').onclick=async()=>{
+  const name=$('#dispName').value.trim();if(name.length<2){toast('Name too short');return;}
+  const {error}=await sb.from('profiles').update({name}).eq('id',ME.id);
+  if(error){toast(error.message);return;}
+  ME.name=name;$('#whoami').textContent=name;toast('Name updated');if(view==='today')loadBoard();
+};
+$('#logoutBtn').onclick=async()=>{clearInterval(pollTimer);if(rtChannel)sb.removeChannel(rtChannel);await sb.auth.signOut();location.reload();};
+
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));}
+
+boot();
+</script>
