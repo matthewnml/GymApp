@@ -360,7 +360,21 @@ $('#saveName').onclick=async()=>{
 };
 $('#logoutBtn').onclick=async()=>{clearInterval(pollTimer);if(rtChannel)sb.removeChannel(rtChannel);await sb.auth.signOut();location.reload();};
 
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));}
+if('serviceWorker' in navigator){
+  const hadController=!!navigator.serviceWorker.controller;
+  let refreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!hadController||refreshing)return;      // don't reload on first install
+    refreshing=true;window.location.reload();  // a new version took over → refresh to it
+  });
+  window.addEventListener('load',async()=>{
+    const reg=await navigator.serviceWorker.register('/sw.js').catch(()=>null);
+    if(!reg)return;
+    // check for a new version hourly and whenever the app is reopened/focused
+    setInterval(()=>reg.update().catch(()=>{}),60*60*1000);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
+  });
+}
 
 boot();
 </script>
