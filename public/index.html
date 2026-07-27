@@ -39,7 +39,7 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
 .datebar .dsel{flex:1;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:7px;position:relative;cursor:pointer}
 .datebar .dsel .d1{font-weight:800;font-size:16px}.datebar .dsel .d2{font-size:12px;color:var(--muted)}
 .datebar .dsel .caret{color:var(--muted);font-size:12px;margin-left:5px;font-weight:400}
-.datepick{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer}
+.datepick{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;pointer-events:none}
 .tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.5px;color:#043;background:var(--accent);border-radius:6px;padding:2px 6px;vertical-align:middle;margin-left:6px}
 .person{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}.person:first-child{border-top:none}
 .avatar{width:38px;height:38px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-weight:800;color:#052;background:var(--accent)}
@@ -114,8 +114,8 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
     </section>
     <section id="logView" class="hidden">
       <div class="datebar"><button class="nav" id="lPrev">‹</button><div class="dsel"><div class="d1" id="lD1">—</div><div class="d2" id="lD2"></div><input type="date" class="datepick" id="lPick"></div><button class="nav" id="lNext">›</button></div>
-      <div class="card"><h2>Your entry</h2><div id="logFields"></div><button class="btn" id="saveBtn">Save</button><div class="savenote" id="saveNote"></div></div>
-      <div class="card"><h2>Recent history</h2><div id="history"></div></div>
+      <div class="card"><h2>Your entry</h2><div id="logFields"></div><button class="btn" id="saveBtn">Save</button><button class="btn danger hidden" id="delBtn" style="margin-top:10px">Delete this entry</button><div class="savenote" id="saveNote"></div></div>
+      <div class="card"><h2>Recent history <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">· tap to edit</span></h2><div id="history"></div></div>
     </section>
     <section id="trendsView" class="hidden">
       <div class="chips" id="metricChips"></div>
@@ -159,6 +159,7 @@ const fmtShort=s=>new Date(s+'T00:00:00').toLocaleDateString(undefined,{weekday:
 const initials=n=>n.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600);}
+function openPicker(id){const el=$('#'+id);if(!el)return;try{el.showPicker();}catch(_){try{el.focus();el.click();}catch(__){}}}
 function show(id){['loadView','authView','setPwView','appView'].forEach(v=>$('#'+v).classList.toggle('hidden',v!==id));}
 
 let ME=null, METRICS=[], MYENTRIES=[], view='today';
@@ -255,6 +256,7 @@ const shift=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);ret
 $('#tPrev').onclick=()=>{tDate=shift(tDate,-1);loadBoard();};
 $('#tNext').onclick=()=>{tDate=shift(tDate,1);loadBoard();};
 $('#tPick').onchange=e=>{if(e.target.value){tDate=e.target.value;loadBoard();}};
+$('#tPick').closest('.dsel').addEventListener('click',()=>openPicker('tPick'));
 async function loadBoard(){
   $('#tD1').innerHTML=fmtLong(tDate)+(tDate===todayISO()?'<span class="tag">TODAY</span>':'<span class="caret">▾</span>');
   $('#tD2').textContent=tDate;$('#tPick').value=tDate;
@@ -281,6 +283,7 @@ async function loadBoard(){
 $('#lPrev').onclick=()=>{lDate=shift(lDate,-1);renderLog();};
 $('#lNext').onclick=()=>{lDate=shift(lDate,1);renderLog();};
 $('#lPick').onchange=e=>{if(e.target.value){lDate=e.target.value;renderLog();}};
+$('#lPick').closest('.dsel').addEventListener('click',()=>openPicker('lPick'));
 const entryFor=date=>MYENTRIES.find(e=>e.date===date);
 function renderLog(){
   $('#lD1').innerHTML=fmtLong(lDate)+(lDate===todayISO()?'<span class="tag">TODAY</span>':'<span class="caret">▾</span>');
@@ -292,8 +295,15 @@ function renderLog(){
     return `<label class="field"><span>${esc(m.label)}${m.unit?' ('+esc(m.unit)+')':''}</span><input class="inp" data-k="${m.key}" type="number" inputmode="decimal" value="${val}"></label>`;
   }).join('');
   $('#saveNote').textContent=e?('Last saved '+new Date(e.updated).toLocaleString()):'No entry saved for this day yet.';
+  $('#delBtn').classList.toggle('hidden',!e);
   renderHistory();
 }
+$('#delBtn').onclick=async()=>{
+  if(!confirm('Delete your entry for '+lDate+'? This cannot be undone.'))return;
+  const {error}=await sb.from('entries').delete().eq('user_id',ME.id).eq('date',lDate);
+  if(error){toast(error.message);return;}
+  toast('Entry deleted');await loadMine();renderLog();
+};
 $('#saveBtn').onclick=async()=>{
   const body={};$$('#logFields [data-k]').forEach(el=>body[el.dataset.k]=el.value);
   const values={};
@@ -312,9 +322,10 @@ function renderHistory(){
   const numMs=METRICS.filter(m=>m.type==='number');
   const rows=MYENTRIES.slice(0,30).map(e=>{
     const vals=numMs.filter(m=>e.values[m.key]!=null).map(m=>`<span><b>${esc(e.values[m.key])}</b> ${esc(m.unit||'')}</span>`).join('');
-    return `<div class="hitem"><div class="hd">${fmtShort(e.date)}</div><div class="hv">${vals||'<span class="empty">note only</span>'}</div></div>`;
+    return `<div class="hitem" data-date="${e.date}" style="cursor:pointer"><div class="hd">${fmtShort(e.date)}</div><div class="hv">${vals||'<span class="empty">note only</span>'}</div></div>`;
   }).join('');
   $('#history').innerHTML=rows||'<div class="empty">Nothing logged yet.</div>';
+  $$('#history [data-date]').forEach(el=>el.onclick=()=>{lDate=el.dataset.date;renderLog();window.scrollTo({top:0,behavior:'smooth'});});
 }
 
 function renderTrends(){
