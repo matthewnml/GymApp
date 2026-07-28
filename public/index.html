@@ -82,12 +82,21 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
   <p class="sub">Log in to your health tracker</p>
   <div class="card">
     <div class="err" id="authErr"></div>
+    <button class="btn sec" id="googleBtn">Continue with Google</button>
+    <div style="text-align:center;color:var(--muted);font-size:12px;margin:12px 0">— or —</div>
     <label class="field"><span>Email</span><input id="aEmail" class="inp" type="email" autocomplete="username" placeholder="you@email.com"></label>
     <label class="field"><span>Password</span><input id="aPass" class="inp" type="password" autocomplete="current-password" placeholder="••••••"></label>
     <button class="btn" id="loginBtn">Log in</button>
     <button class="btn ghost" id="forgotBtn" style="margin-top:10px">Forgot password</button>
   </div>
-  <div class="note">Accounts are invite-only. Ask the owner to add your email.</div>
+  <div class="note">No account? <a href="#" id="reqToggle" style="color:var(--accent);font-weight:700;text-decoration:none">Request access</a></div>
+  <div class="card hidden" id="reqCard">
+    <div class="err" id="reqMsg"></div>
+    <label class="field"><span>Your name</span><input id="rqName" class="inp"></label>
+    <label class="field"><span>Email</span><input id="rqEmail" class="inp" type="email"></label>
+    <label class="field"><span>Note (optional)</span><textarea id="rqNote" class="inp" rows="2" placeholder="Which team / why"></textarea></label>
+    <button class="btn" id="rqSubmit">Send request</button>
+  </div>
 </div>
 
 <div id="setPwView" class="auth hidden">
@@ -194,6 +203,23 @@ $('#loginBtn').onclick=async()=>{
   if(error)$('#authErr').textContent=error.message;
 };
 $('#aPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginBtn').click();});
+$('#googleBtn').onclick=async()=>{
+  $('#authErr').textContent='';
+  const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});
+  if(error)$('#authErr').textContent=error.message;
+};
+$('#reqToggle').onclick=e=>{e.preventDefault();$('#reqCard').classList.toggle('hidden');};
+$('#rqSubmit').onclick=async()=>{
+  const name=$('#rqName').value.trim(),email=$('#rqEmail').value.trim(),note=$('#rqNote').value.trim();
+  const m=$('#reqMsg');m.style.color='';m.textContent='';
+  if(!name||!email){m.textContent='Please enter your name and email.';return;}
+  $('#rqSubmit').disabled=true;
+  const {error}=await sb.from('signup_requests').insert({name,email,note});
+  $('#rqSubmit').disabled=false;
+  if(error){m.textContent=error.message;return;}
+  $('#rqName').value='';$('#rqEmail').value='';$('#rqNote').value='';
+  m.style.color='var(--accent)';m.textContent='Request sent — the owner will be notified. You can close this.';
+};
 $('#forgotBtn').onclick=async()=>{
   const email=$('#aEmail').value.trim();$('#authErr').textContent='';
   if(!email){$('#authErr').textContent='Type your email above first.';return;}
