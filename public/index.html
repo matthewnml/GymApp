@@ -117,7 +117,12 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
       <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></div>
       <h1 id="viewTitle">Today</h1><div class="ver" id="appVer"></div><div class="who" id="whoami"></div>
     </div>
-    <section id="todayView">
+    <section id="dashboardView" class="hidden">
+      <div class="card" id="dashHero"></div>
+      <div class="card"><h2>Your stats</h2><div class="statrow" id="dashStats"></div></div>
+      <div class="card"><h2>Latest values</h2><div id="dashLatest"></div></div>
+    </section>
+    <section id="todayView" class="hidden">
       <div class="datebar"><button class="nav" id="tPrev">‹</button><div class="dsel"><div class="d1" id="tD1">—</div><div class="d2" id="tD2"></div><input type="date" class="datepick" id="tPick"></div><button class="nav" id="tNext">›</button></div>
       <div class="card"><h2>Everyone · <span id="tCount">0</span> people</h2><div id="board"></div></div>
     </section>
@@ -144,7 +149,8 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
     </section>
   </div>
   <nav class="nav">
-    <button data-v="today" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>Today</button>
+    <button data-v="dashboard" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</button>
+    <button data-v="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Friends</button>
     <button data-v="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Log</button>
     <button data-v="trends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Trends</button>
     <button data-v="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 14H3.5a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 5 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 10 3.6V3.5a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 20.4 9H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>More</button>
@@ -249,11 +255,11 @@ async function afterLogin(session){
   $('#whoami').textContent=ME.name;$('#dispName').value=ME.name;
   $('#acctInfo').innerHTML=`Signed in as <b>${esc(ME.email)}</b>`;
   chartKey=(METRICS.find(m=>m.type==='number')||{}).key||null;
-  show('appView');subscribeRealtime();switchView('today');loadMine();
+  show('appView');subscribeRealtime();switchView('dashboard');loadMine();
 }
 
 async function loadMetrics(){const {data}=await sb.from('metrics').select('*').order('ord');METRICS=(data||[]).map(m=>({...m,chart:!!m.chart,builtin:!!m.builtin}));}
-async function loadMine(){const {data}=await sb.from('entries').select('date,values,updated').eq('user_id',ME.id).order('date',{ascending:false});MYENTRIES=data||[];if(view==='log')renderLog();if(view==='trends')renderTrends();}
+async function loadMine(){const {data}=await sb.from('entries').select('date,values,updated').eq('user_id',ME.id).order('date',{ascending:false});MYENTRIES=data||[];if(view==='log')renderLog();if(view==='trends')renderTrends();if(view==='dashboard')renderDashboard();}
 
 function subscribeRealtime(){
   if(rtChannel)sb.removeChannel(rtChannel);
@@ -271,11 +277,35 @@ async function refreshMetrics(){await loadMetrics();if(view==='log')renderLog();
 $$('.nav button').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
 function switchView(v){
   view=v;$$('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  ['today','log','trends','more'].forEach(x=>$('#'+x+'View').classList.toggle('hidden',x!==v));
-  $('#viewTitle').textContent={today:'Today',log:'My Log',trends:'Trends',more:'More'}[v];
+  ['dashboard','today','log','trends','more'].forEach(x=>$('#'+x+'View').classList.toggle('hidden',x!==v));
+  $('#viewTitle').textContent={dashboard:'My Dashboard',today:'Friends',log:'My Log',trends:'Trends',more:'More'}[v];
   clearInterval(pollTimer);
+  if(v==='dashboard')renderDashboard();
   if(v==='today'){loadBoard();pollTimer=setInterval(loadBoard,15000);}
   if(v==='log')renderLog();if(v==='trends')renderTrends();if(v==='more')renderMetricList();
+}
+function renderDashboard(){
+  if(!ME)return;
+  const today=todayISO(),todayEntry=entryFor(today),logged=!!todayEntry;
+  const numMs=METRICS.filter(m=>m.type==='number');
+  $('#dashHero').innerHTML=`<div style="font-size:19px;font-weight:800;margin-bottom:4px">Hi, ${esc(ME.name)} 👋</div>
+    <div class="muted" style="margin-bottom:12px">${logged?"You've logged today — nice work.":"You haven't logged today yet."}</div>
+    <button class="btn" id="dashLogBtn">${logged?"Edit today's log":'Log today'}</button>`;
+  $('#dashLogBtn').onclick=()=>{lDate=today;switchView('log');};
+  const dates=new Set(MYENTRIES.map(e=>e.date));
+  let streak=0,d=today;while(dates.has(d)){streak++;d=shift(d,-1);}
+  const st=(k,v)=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  const wk=shift(today,-7);
+  $('#dashStats').innerHTML=st('Day streak',streak)+st('Entries',MYENTRIES.length)+st('This week',MYENTRIES.filter(e=>e.date>wk).length);
+  const rows=numMs.map(m=>{
+    const withVal=MYENTRIES.filter(e=>e.values[m.key]!=null);
+    if(!withVal.length)return '';
+    const latest=withVal[0].values[m.key];
+    const last7=withVal.slice(0,7).map(e=>Number(e.values[m.key]));
+    const avg=Math.round(last7.reduce((a,b)=>a+b,0)/last7.length*10)/10;
+    return `<div class="hitem"><div class="hd">${esc(m.label)}</div><div class="hv"><span>latest <b>${esc(latest)}</b> ${esc(m.unit||'')}</span><span>7-day avg <b>${avg}</b> ${esc(m.unit||'')}</span></div></div>`;
+  }).filter(Boolean).join('');
+  $('#dashLatest').innerHTML=rows||'<div class="empty">Log some numbers to see your stats.</div>';
 }
 const shift=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return iso(d);};
 
