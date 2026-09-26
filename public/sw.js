@@ -2,7 +2,7 @@
    Supabase (auth + data) is cross-origin and always goes to the network.
    RELEASE STEP: bump the version below on every deploy so all installed
    apps detect the change and auto-refresh to the new version. */
-const CACHE = 'gymapp-v7';
+const CACHE = 'gymapp-v8';
 const SHELL = [
   '/', '/index.html', '/manifest.webmanifest',
   '/icon.svg', '/icon-180.png', '/icon-192.png', '/icon-512.png'

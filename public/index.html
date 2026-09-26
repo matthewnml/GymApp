@@ -50,6 +50,13 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
 .statrow{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
 .stat{flex:1;min-width:70px;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
 .stat .k{font-size:11px;color:var(--muted);font-weight:600}.stat .v{font-size:17px;font-weight:800;margin-top:2px}
+.seg{display:flex;gap:4px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px}
+.seg button{flex:1;background:none;border:none;color:var(--muted);font-size:13px;font-weight:700;padding:9px 0;border-radius:9px}
+.seg button.on{background:var(--accent);color:#052}
+.mbar{margin:10px 0}.mbar .ml{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px}.mbar .ml b{color:var(--text)}
+.mtrack{height:16px;border-radius:8px;overflow:hidden;display:flex;background:var(--card2)}
+.mtrack i{display:block;height:100%}
+.pr{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.5px;color:#052;background:var(--accent);border-radius:6px;padding:2px 6px;margin-left:6px}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .chip{padding:8px 12px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:13px;font-weight:700}
 .chip.on{background:var(--accent);color:#052;border-color:var(--accent)}
@@ -132,8 +139,34 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
       <div class="card"><h2>Recent history <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">· tap to edit</span></h2><div id="history"></div></div>
     </section>
     <section id="trendsView" class="hidden">
-      <div class="chips" id="metricChips"></div>
-      <div class="card chartcard"><h2 id="chartTitle">Trend</h2><svg id="chart" viewBox="0 0 320 180" preserveAspectRatio="none"></svg><div class="statrow" id="chartStats"></div></div>
+      <div class="seg" id="progSeg">
+        <button data-s="trends" class="on">Trends</button>
+        <button data-s="diet">Diet</button>
+        <button data-s="strength">Strength</button>
+      </div>
+
+      <div id="segTrends">
+        <div class="chips" id="metricChips"></div>
+        <div class="card chartcard"><h2 id="chartTitle">Trend</h2><svg id="chart" viewBox="0 0 320 180" preserveAspectRatio="none"></svg><div class="statrow" id="chartStats"></div></div>
+      </div>
+
+      <div id="segDiet" class="hidden">
+        <div class="card">
+          <h2>Daily calorie goal</h2>
+          <div class="grid" style="grid-template-columns:1fr auto;align-items:end">
+            <label class="field" style="margin:0"><span>Target (kcal) — used for the "on target" line</span><input id="calGoal" class="inp" type="number" inputmode="numeric" placeholder="e.g. 2200"></label>
+            <button class="btn sm sec" id="saveGoal">Save</button>
+          </div>
+        </div>
+        <div class="card chartcard"><h2 id="dietChartTitle">Calories</h2><svg id="dietChart" viewBox="0 0 320 180" preserveAspectRatio="none"></svg><div class="statrow" id="dietStats"></div></div>
+        <div class="card"><h2>Macros — last 7 logged days</h2><div id="macroBars"></div></div>
+      </div>
+
+      <div id="segStrength" class="hidden">
+        <div class="chips" id="exChips"></div>
+        <div class="card chartcard"><h2 id="strTitle">Estimated 1RM</h2><svg id="strChart" viewBox="0 0 320 180" preserveAspectRatio="none"></svg><div class="statrow" id="strStats"></div></div>
+        <div class="card"><h2>Recent sessions</h2><div id="strSessions"></div></div>
+      </div>
     </section>
     <section id="moreView" class="hidden">
       <div class="card"><h2>Display name</h2><div class="grid" style="grid-template-columns:1fr auto;align-items:end"><label class="field" style="margin:0"><span>Your name on the board</span><input id="dispName" class="inp"></label><button class="btn sm sec" id="saveName">Save</button></div></div>
@@ -144,6 +177,22 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
           <button class="btn sec" id="addMetric">Add metric</button>
         </div>
       </div>
+      <div class="card"><h2>Strength · Hevy import</h2>
+        <div class="muted" style="margin-bottom:10px;font-size:13px">In Hevy: Profile → ⚙ Settings → <b>Export &amp; Import Data → Export Workouts</b>. Then upload <code>workout_data.csv</code> here. Re-importing is safe — duplicate sets are skipped.</div>
+        <input id="hevyFile" type="file" accept=".csv,text/csv" class="inp" style="padding:9px">
+        <div class="savenote" id="hevyNote"></div>
+      </div>
+      <div class="card"><h2>Diet · MyFitnessPal</h2>
+        <div class="muted" style="margin-bottom:10px;font-size:13px">Unofficial sync — MyFitnessPal has no public API, so this can break if they change their site, and it's against MFP's terms. Your login is stored encrypted on the server and only used to fetch your diary totals.</div>
+        <div class="err" id="mfpErr"></div>
+        <label class="field"><span>MyFitnessPal email/username</span><input id="mfpUser" class="inp" autocomplete="off"></label>
+        <label class="field"><span>MyFitnessPal password</span><input id="mfpPass" class="inp" type="password" autocomplete="off" placeholder="stored encrypted, never shown again"></label>
+        <div class="grid" style="grid-template-columns:1fr 1fr">
+          <button class="btn sec" id="mfpSave">Save login</button>
+          <button class="btn" id="mfpSync">Sync now</button>
+        </div>
+        <div class="savenote" id="mfpStatus"></div>
+      </div>
       <div class="card"><h2>Appearance</h2><button class="btn ghost" id="themeBtn">Toggle light / dark</button></div>
       <div class="card"><h2>Account</h2><div class="muted" id="acctInfo" style="margin-bottom:10px"></div><button class="btn danger" id="logoutBtn">Log out</button></div>
     </section>
@@ -152,7 +201,7 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
     <button data-v="dashboard" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</button>
     <button data-v="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Friends</button>
     <button data-v="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Log</button>
-    <button data-v="trends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Trends</button>
+    <button data-v="trends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Progress</button>
     <button data-v="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 14H3.5a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 5 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 10 3.6V3.5a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 20.4 9H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>More</button>
   </nav>
 </div>
@@ -177,10 +226,12 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');se
 function openPicker(id){const el=$('#'+id);if(!el)return;try{el.showPicker();}catch(_){try{el.focus();el.click();}catch(__){}}}
 function show(id){['loadView','authView','setPwView','appView'].forEach(v=>$('#'+v).classList.toggle('hidden',v!==id));}
 
-let ME=null, METRICS=[], MYENTRIES=[], view='today';
+let ME=null, METRICS=[], MYENTRIES=[], SETS=[], view='today';
 let tDate=todayISO(), lDate=todayISO(), chartKey=null, pollTimer=null, rtChannel=null;
+let segView='trends', strengthEx=null;
+const MFP_FN=SUPABASE_URL+'/functions/v1/mfp-sync';
 
-const APP_VERSION='GymApp v2';
+const APP_VERSION='GymApp v3';
 $('#appVer').textContent=APP_VERSION;
 (function(){const s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s);})();
 $('#themeBtn').onclick=()=>{const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);localStorage.setItem('theme',nx);};
@@ -255,11 +306,12 @@ async function afterLogin(session){
   $('#whoami').textContent=ME.name;$('#dispName').value=ME.name;
   $('#acctInfo').innerHTML=`Signed in as <b>${esc(ME.email)}</b>`;
   chartKey=(METRICS.find(m=>m.type==='number')||{}).key||null;
-  show('appView');subscribeRealtime();switchView('dashboard');loadMine();
+  show('appView');subscribeRealtime();switchView('dashboard');loadMine();loadMySets();
 }
 
 async function loadMetrics(){const {data}=await sb.from('metrics').select('*').order('ord');METRICS=(data||[]).map(m=>({...m,chart:!!m.chart,builtin:!!m.builtin}));}
-async function loadMine(){const {data}=await sb.from('entries').select('date,values,updated').eq('user_id',ME.id).order('date',{ascending:false});MYENTRIES=data||[];if(view==='log')renderLog();if(view==='trends')renderTrends();if(view==='dashboard')renderDashboard();}
+async function loadMine(){const {data}=await sb.from('entries').select('date,values,updated').eq('user_id',ME.id).order('date',{ascending:false});MYENTRIES=data||[];if(view==='log')renderLog();if(view==='trends')renderProgress();if(view==='dashboard')renderDashboard();}
+async function loadMySets(){const {data}=await sb.from('workout_sets').select('date,exercise,weight_kg,reps,est_1rm,workout_title,set_index').eq('user_id',ME.id).order('date',{ascending:false}).limit(5000);SETS=data||[];if(view==='trends'&&segView==='strength')renderStrength();if(view==='dashboard')renderDashboard();}
 
 function subscribeRealtime(){
   if(rtChannel)sb.removeChannel(rtChannel);
@@ -270,6 +322,11 @@ function subscribeRealtime(){
       if(uid===ME.id)loadMine();
     })
     .on('postgres_changes',{event:'*',schema:'public',table:'metrics'},()=>refreshMetrics())
+    .on('postgres_changes',{event:'*',schema:'public',table:'workout_sets'},payload=>{
+      const uid=(payload.new&&payload.new.user_id)||(payload.old&&payload.old.user_id);
+      if(uid===ME.id)loadMySets();
+      else if(view==='today')loadBoard();
+    })
     .subscribe();
 }
 async function refreshMetrics(){await loadMetrics();if(view==='log')renderLog();if(view==='more')renderMetricList();if(view==='trends')renderTrends();}
@@ -278,11 +335,11 @@ $$('.nav button').forEach(b=>b.onclick=()=>switchView(b.dataset.v));
 function switchView(v){
   view=v;$$('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   ['dashboard','today','log','trends','more'].forEach(x=>$('#'+x+'View').classList.toggle('hidden',x!==v));
-  $('#viewTitle').textContent={dashboard:'My Dashboard',today:'Friends',log:'My Log',trends:'Trends',more:'More'}[v];
+  $('#viewTitle').textContent={dashboard:'My Dashboard',today:'Friends',log:'My Log',trends:'Progress',more:'More'}[v];
   clearInterval(pollTimer);
   if(v==='dashboard')renderDashboard();
   if(v==='today'){loadBoard();pollTimer=setInterval(loadBoard,15000);}
-  if(v==='log')renderLog();if(v==='trends')renderTrends();if(v==='more')renderMetricList();
+  if(v==='log')renderLog();if(v==='trends')renderProgress();if(v==='more'){renderMetricList();renderIntegrations();}
 }
 function renderDashboard(){
   if(!ME)return;
@@ -305,7 +362,23 @@ function renderDashboard(){
     const avg=Math.round(last7.reduce((a,b)=>a+b,0)/last7.length*10)/10;
     return `<div class="hitem"><div class="hd">${esc(m.label)}</div><div class="hv"><span>latest <b>${esc(latest)}</b> ${esc(m.unit||'')}</span><span>7-day avg <b>${avg}</b> ${esc(m.unit||'')}</span></div></div>`;
   }).filter(Boolean).join('');
-  $('#dashLatest').innerHTML=rows||'<div class="empty">Log some numbers to see your stats.</div>';
+  $('#dashLatest').innerHTML=(rows||'')+strengthSummaryRows()||'<div class="empty">Log some numbers to see your stats.</div>';
+}
+// Compact strength readout for the dashboard: last session + top exercise trend.
+function strengthSummaryRows(){
+  if(!SETS.length)return '';
+  const lastDate=SETS[0].date; // SETS is ordered date desc
+  const lastSets=SETS.filter(s=>s.date===lastDate);
+  const lastEx=[...new Set(lastSets.map(s=>s.exercise))].slice(0,3).join(', ');
+  // Pick the exercise with the most logged days as the "main lift".
+  const byEx={};SETS.forEach(s=>{(byEx[s.exercise]=byEx[s.exercise]||new Set()).add(s.date);});
+  const main=Object.keys(byEx).sort((a,b)=>byEx[b].size-byEx[a].size)[0];
+  const mv=SETS.filter(s=>s.exercise===main&&s.est_1rm!=null);
+  const byDay={};mv.forEach(s=>{const d=s.date;if(byDay[d]==null||s.est_1rm>byDay[d])byDay[d]=Number(s.est_1rm);});
+  const ds=Object.keys(byDay).sort();
+  let trend='';
+  if(ds.length>1){const change=byDay[ds[ds.length-1]]-byDay[ds[0]];trend=` · e1RM ${change>=0?'+':''}${change.toFixed(1)}kg ${change>0.5?'▲':change<-0.5?'▼':'→'}`;}
+  return `<div class="hitem"><div class="hd">Strength</div><div class="hv"><span>last <b>${fmtShort(lastDate)}</b>${lastEx?' · '+esc(lastEx):''}</span>${main?`<span>main lift <b>${esc(main)}</b>${esc(trend)}</span>`:''}</div></div>`;
 }
 const shift=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return iso(d);};
 
@@ -412,6 +485,179 @@ function drawStats(series,m){
   const st=(k,v)=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   $('#chartStats').innerHTML=st('Latest',latest+u)+st('Average',(Math.round(avg*10)/10)+u)+st('Min',Math.min(...vals)+u)+st('Max',Math.max(...vals)+u)+st('Change',(change>=0?'+':'')+(Math.round(change*10)/10)+u);
 }
+
+/* ---------- Progress: segmented Trends / Diet / Strength ---------- */
+$$('#progSeg button').forEach(b=>b.onclick=()=>{segView=b.dataset.s;renderProgress();});
+function renderProgress(){
+  $$('#progSeg button').forEach(b=>b.classList.toggle('on',b.dataset.s===segView));
+  $('#segTrends').classList.toggle('hidden',segView!=='trends');
+  $('#segDiet').classList.toggle('hidden',segView!=='diet');
+  $('#segStrength').classList.toggle('hidden',segView!=='strength');
+  if(segView==='trends')renderTrends();
+  else if(segView==='diet')renderDiet();
+  else renderStrength();
+}
+
+// Generic line chart (mirrors drawChart) with an optional horizontal goal line.
+function drawSeries(svg,series,goal){
+  const W=320,H=180,pad=8;
+  if(!series.length){svg.innerHTML='<text x="160" y="94" text-anchor="middle" fill="#8ba39c" font-size="12">No data yet</text>';return;}
+  const vals=series.map(s=>s.val);let mn=Math.min(...vals),mx=Math.max(...vals);
+  if(goal!=null){mn=Math.min(mn,goal);mx=Math.max(mx,goal);}
+  if(mn===mx){mn-=1;mx+=1;}const rng=mx-mn,n=series.length;
+  const x=i=>pad+(n===1?(W-2*pad)/2:i*(W-2*pad)/(n-1)),y=v=>pad+(H-2*pad-4)-((v-mn)/rng)*(H-2*pad-4);
+  const pts=series.map((s,i)=>[x(i),y(s.val)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=line+` L ${pts[pts.length-1][0].toFixed(1)} ${H-pad} L ${pts[0][0].toFixed(1)} ${H-pad} Z`;
+  const dots=pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="var(--accent)"/>`).join('');
+  const goalLine=goal!=null?`<line x1="${pad}" y1="${y(goal).toFixed(1)}" x2="${W-pad}" y2="${y(goal).toFixed(1)}" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 4"/>`:'';
+  svg.innerHTML=`<defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.28"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#gg)"/>${goalLine}<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+}
+const statBox=(k,v)=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+
+/* ---------- Diet (MyFitnessPal-fed metrics: calories/protein/carbs/fat) ---------- */
+const calGoalKey=()=>'calGoal:'+(ME?ME.id:'');
+function renderDiet(){
+  const goalRaw=localStorage.getItem(calGoalKey());const goal=goalRaw?Number(goalRaw):null;
+  $('#calGoal').value=goalRaw||'';
+  const series=MYENTRIES.filter(e=>e.values.calories!=null).map(e=>({date:e.date,val:Number(e.values.calories)})).sort((a,b)=>a.date<b.date?-1:1);
+  $('#dietChartTitle').textContent='Calories (kcal)'+(goal?` · goal ${goal}`:'');
+  drawSeries($('#dietChart'),series,goal);
+  if(!series.length){$('#dietStats').innerHTML='<div class="empty">No calories logged yet. Sync MyFitnessPal or log manually.</div>';}
+  else{
+    const vals=series.map(s=>s.val),latest=vals[vals.length-1];
+    const last7=vals.slice(-7),avg=Math.round(last7.reduce((a,b)=>a+b,0)/last7.length);
+    let onTarget='—';
+    if(goal){const hit=last7.filter(v=>Math.abs(v-goal)<=goal*0.1).length;onTarget=`${hit}/${last7.length}`;}
+    $('#dietStats').innerHTML=statBox('Latest',latest)+statBox('7-day avg',avg)+(goal?statBox('On target (7d)',onTarget):statBox('Days logged',series.length));
+  }
+  // Macro breakdown for the last 7 logged days that have any macro data.
+  const macroDays=MYENTRIES.filter(e=>['protein','carbs','fat'].some(k=>e.values[k]!=null)).slice(0,7);
+  if(!macroDays.length){$('#macroBars').innerHTML='<div class="empty">No macros yet.</div>';return;}
+  const sum=k=>macroDays.reduce((a,e)=>a+(Number(e.values[k])||0),0)/macroDays.length;
+  const p=Math.round(sum('protein')),c=Math.round(sum('carbs')),f=Math.round(sum('fat'));
+  // 4 kcal/g protein & carbs, 9 kcal/g fat.
+  const pc=p*4,cc=c*4,fc=f*9,tot=pc+cc+fc||1;
+  const seg=(lbl,g,kcal,col)=>`<div class="mbar"><div class="ml"><span>${lbl}</span><b>${g} g · ${Math.round(kcal/tot*100)}%</b></div><div class="mtrack"><i style="width:100%;background:${col}"></i></div></div>`;
+  $('#macroBars').innerHTML=
+    `<div class="mtrack" style="height:20px;margin-bottom:12px"><i style="width:${pc/tot*100}%;background:var(--accent)"></i><i style="width:${cc/tot*100}%;background:#5aa9e6"></i><i style="width:${fc/tot*100}%;background:#e6a15a"></i></div>`+
+    seg('Protein',p,pc,'var(--accent)')+seg('Carbs',c,cc,'#5aa9e6')+seg('Fat',f,fc,'#e6a15a');
+}
+$('#saveGoal').onclick=()=>{const v=$('#calGoal').value.trim();if(v)localStorage.setItem(calGoalKey(),String(Number(v)));else localStorage.removeItem(calGoalKey());toast('Goal saved');renderDiet();};
+
+/* ---------- Strength (Hevy-fed workout_sets) ---------- */
+function exerciseList(){return [...new Set(SETS.map(s=>s.exercise))].sort();}
+function renderStrength(){
+  const exs=exerciseList();
+  if(!exs.length){$('#exChips').innerHTML='';$('#strChart').innerHTML='';$('#strStats').innerHTML='<div class="empty">Import your Hevy CSV (More tab) to see strength progress.</div>';$('#strSessions').innerHTML='';return;}
+  if(!exs.includes(strengthEx))strengthEx=exs[0];
+  $('#exChips').innerHTML=exs.map(e=>`<button class="chip ${e===strengthEx?'on':''}" data-e="${esc(e)}">${esc(e)}</button>`).join('');
+  $$('#exChips .chip').forEach(c=>c.onclick=()=>{strengthEx=c.dataset.e;renderStrength();});
+  const mine=SETS.filter(s=>s.exercise===strengthEx);
+  // Best estimated 1RM per day.
+  const byDay={};mine.forEach(s=>{if(s.est_1rm==null)return;const d=s.date;if(byDay[d]==null||s.est_1rm>byDay[d])byDay[d]=Number(s.est_1rm);});
+  const series=Object.keys(byDay).sort().map(d=>({date:d,val:byDay[d]}));
+  $('#strTitle').textContent='Estimated 1RM — '+strengthEx+' (kg)';
+  drawSeries($('#strChart'),series,null);
+  if(!series.length){$('#strStats').innerHTML='<div class="empty">No weighted sets for this exercise.</div>';}
+  else{
+    const vals=series.map(s=>s.val),latest=vals[vals.length-1],best=Math.max(...vals),change=vals.length>1?latest-vals[0]:0;
+    const trend=change>0.5?'▲ up':change<-0.5?'▼ down':'→ flat';
+    $('#strStats').innerHTML=statBox('Latest e1RM',latest.toFixed(1))+statBox('Best e1RM',best.toFixed(1))+statBox('Change',(change>=0?'+':'')+change.toFixed(1))+statBox('Trend',trend);
+  }
+  // Recent sessions: group all sets of this exercise by date.
+  const sessDates=[...new Set(mine.map(s=>s.date))].sort((a,b)=>a<b?1:-1).slice(0,4);
+  let runningBest=0;const daysAsc=Object.keys(byDay).sort();
+  $('#strSessions').innerHTML=sessDates.map(d=>{
+    const sets=mine.filter(s=>s.date===d).sort((a,b)=>a.set_index-b.set_index);
+    const isPR=byDay[d]!=null&&byDay[d]>=Math.max(...daysAsc.filter(x=>x<=d).map(x=>byDay[x]));
+    const line=sets.map(s=>`${s.weight_kg!=null?s.weight_kg+'kg':'BW'}×${s.reps??'–'}`).join(', ');
+    return `<div class="hitem"><div class="hd">${fmtShort(d)}</div><div class="hv"><span>${esc(line)}</span>${isPR&&byDay[d]!=null?'<span class="pr">PR</span>':''}</div></div>`;
+  }).join('');
+}
+
+/* ---------- Hevy CSV import (client-side, no secrets) ---------- */
+function parseCSV(text){
+  const rows=[];let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}
+    else if(ch==='"')q=true;
+    else if(ch===','){row.push(cur);cur='';}
+    else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur='';}
+    else if(ch!=='\r')cur+=ch;
+  }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows.filter(r=>r.length>1||(r.length===1&&r[0]!==''));
+}
+async function importHevy(file){
+  const note=$('#hevyNote');note.textContent='Reading file…';
+  let rows;try{rows=parseCSV(await file.text());}catch(_){note.textContent='Could not read that file.';return;}
+  if(rows.length<2){note.textContent='That CSV looks empty.';return;}
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  const col=(...names)=>{for(const n of names){const i=head.indexOf(n);if(i>=0)return i;}return -1;};
+  const ci={start:col('start_time'),title:col('title'),ex:col('exercise_title','exercise'),si:col('set_index'),
+    wkg:col('weight_kg'),wlb:col('weight_lbs','weight_lb'),reps:col('reps'),rpe:col('rpe'),stype:col('set_type')};
+  if(ci.ex<0||ci.start<0){note.textContent='This does not look like a Hevy workout export (missing exercise/date columns).';return;}
+  const toDate=s=>{const m=String(s).match(/^(\d{4}-\d{2}-\d{2})/);if(m)return m[1];const d=new Date(s);return isNaN(d)?null:iso(d);};
+  const num=v=>{const n=Number(v);return v==null||v===''||isNaN(n)?null:n;};
+  const records=[];
+  for(let r=1;r<rows.length;r++){const c=rows[r];if(!c[ci.ex])continue;
+    const date=toDate(c[ci.start]);if(!date)continue;
+    const stype=(ci.stype>=0?c[ci.stype]:'').trim().toLowerCase();
+    if(stype==='warmup')continue; // don't let warm-ups pollute e1RM
+    let wkg=ci.wkg>=0?num(c[ci.wkg]):null;
+    if(wkg==null&&ci.wlb>=0){const lb=num(c[ci.wlb]);if(lb!=null)wkg=Math.round(lb*0.45359237*100)/100;}
+    const set_index=ci.si>=0?(num(c[ci.si])??0):0;
+    const external_id=`${c[ci.start]}|${c[ci.ex]}|${set_index}|${stype}`;
+    records.push({user_id:ME.id,date,workout_title:ci.title>=0?(c[ci.title]||''):'',exercise:c[ci.ex].trim(),
+      set_index,weight_kg:wkg,reps:ci.reps>=0?num(c[ci.reps]):null,rpe:ci.rpe>=0?num(c[ci.rpe]):null,
+      source:'hevy_csv',external_id});
+  }
+  if(!records.length){note.textContent='No valid sets found in that file.';return;}
+  note.textContent=`Importing ${records.length} sets…`;
+  let ok=0,err='';
+  for(let i=0;i<records.length;i+=500){
+    const {error}=await sb.from('workout_sets').upsert(records.slice(i,i+500),{onConflict:'user_id,external_id',ignoreDuplicates:true});
+    if(error){err=error.message;break;}ok+=Math.min(500,records.length-i);
+  }
+  if(err){note.textContent='Import error: '+err;return;}
+  const exN=new Set(records.map(r=>r.exercise)).size;
+  note.textContent=`Imported ${ok} sets across ${exN} exercises. Duplicates were skipped.`;
+  toast('Hevy import complete');await loadMySets();
+}
+$('#hevyFile').addEventListener('change',e=>{const f=e.target.files[0];if(f){importHevy(f);e.target.value='';}});
+
+/* ---------- MyFitnessPal connect + sync (via Edge Function) ---------- */
+async function callMfp(action,body){
+  const {data:{session}}=await sb.auth.getSession();
+  const res=await fetch(MFP_FN,{method:'POST',headers:{'Content-Type':'application/json',
+    'Authorization':'Bearer '+(session?session.access_token:SUPABASE_ANON)},
+    body:JSON.stringify({action,...body})});
+  let out={};try{out=await res.json();}catch(_){}
+  if(!res.ok)throw new Error(out.error||('HTTP '+res.status));
+  return out;
+}
+async function renderIntegrations(){
+  const st=$('#mfpStatus');
+  try{const s=await callMfp('status',{});
+    $('#mfpUser').value=s.username||'';
+    st.textContent=s.connected?`Connected${s.last_synced_at?' · last synced '+new Date(s.last_synced_at).toLocaleString():''}${s.last_error?' · error: '+s.last_error:''}`:'Not connected yet.';
+  }catch(_){st.textContent='';}
+}
+$('#mfpSave').onclick=async()=>{
+  const username=$('#mfpUser').value.trim(),password=$('#mfpPass').value;$('#mfpErr').textContent='';
+  if(!username||!password){$('#mfpErr').textContent='Enter your MyFitnessPal login.';return;}
+  $('#mfpSave').disabled=true;
+  try{await callMfp('connect',{username,password});$('#mfpPass').value='';toast('Login saved');renderIntegrations();}
+  catch(e){$('#mfpErr').textContent=e.message;}
+  $('#mfpSave').disabled=false;
+};
+$('#mfpSync').onclick=async()=>{
+  $('#mfpErr').textContent='';$('#mfpSync').disabled=true;$('#mfpSync').textContent='Syncing…';
+  try{const r=await callMfp('sync',{days:30});toast(`Synced ${r.days_synced??0} days`);await loadMine();renderIntegrations();}
+  catch(e){$('#mfpErr').textContent=e.message;}
+  $('#mfpSync').disabled=false;$('#mfpSync').textContent='Sync now';
+};
 
 function renderMetricList(){
   $('#metricList').innerHTML=METRICS.map(m=>`<div class="gearrow"><div class="gl"><b>${esc(m.label)}</b><small>${m.type}${m.unit?' · '+esc(m.unit):''}${m.builtin?' · built-in':''}</small></div>${m.builtin?'':`<button class="btn sm danger" data-del="${m.key}">Remove</button>`}</div>`).join('');
