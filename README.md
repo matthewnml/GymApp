@@ -49,15 +49,18 @@ buy Hevy Pro, an official-API sync can be added behind the same UI.
 ### Diet — MyFitnessPal (unofficial, requires the Edge Function)
 > ⚠️ MyFitnessPal has **no public API**, and since 2025 uses NextAuth + Cloudflare,
 > so headless password login no longer works. This integration uses your **browser
-> session cookie** (`__Secure-next-auth.session-token`) to read your diary totals.
-> It is **against MFP's Terms of Service** and can break when MFP changes their site.
-> Because the sync runs from a datacenter IP with a non-browser TLS fingerprint,
-> **Cloudflare may block it server-side** even with a valid cookie — the app reports
-> exactly which failure occurred. All MFP-specific code is isolated in
+> session cookie** (`__Secure-next-auth.session-token`) against MFP's own
+> `GET /api/services/diary/read_diary?username=&date=` route to read your diary
+> totals. It is **against MFP's Terms of Service** and can break when MFP changes
+> their site. All MFP-specific code is isolated in
 > [`supabase/functions/mfp-sync/mfp-client.ts`](supabase/functions/mfp-sync/mfp-client.ts)
 > so it's the only file to fix if it breaks. The cookie is stored **encrypted**
-> (AES-GCM) and only ever handled server-side; sessions expire, so it needs
-> re-pasting periodically.
+> (AES-GCM) and only ever handled server-side; sessions expire (~30 days), so it
+> needs re-pasting periodically.
+>
+> **Required:** set MFP **Diary Sharing → Public** (Settings → Diary Settings).
+> `read_diary` returns 403 for a private diary, since the server can't tie the
+> datacenter request to the diary owner.
 
 **Deploy the sync function** (needs the [Supabase CLI](https://supabase.com/docs/guides/cli)):
 

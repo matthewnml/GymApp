@@ -2,30 +2,32 @@
 //  MyFitnessPal unofficial client  (ISOLATED / FRAGILE MODULE)
 // ------------------------------------------------------------
 //  MyFitnessPal has NO public API. Since 2025 they use NextAuth +
-//  Cloudflare, so headless password login is dead. The working method
-//  (verified against a live account) is:
+//  Cloudflare, so headless password login is dead AND the API access
+//  token is sealed inside the encrypted NextAuth cookie (only MFP's
+//  server can decrypt it). The working method (verified against a live
+//  account) rides MFP's own same-origin BFF route, which authenticates
+//  with just the pasted session cookie:
 //
-//    1. User pastes their browser session cookie
-//       (__Secure-next-auth.session-token) from myfitnesspal.com.
-//    2. GET https://www.myfitnesspal.com/user/auth_token?refresh=true
-//       with that cookie -> { user_id, access_token }.
-//    3. GET https://api.myfitnesspal.com/v2/diary?entry_date=YYYY-MM-DD
-//       with Authorization: Bearer <token> + mfp-client-id/mfp-user-id
-//       -> diary_meal items whose nutritional_contents we sum per day.
+//    1. GET https://www.myfitnesspal.com/api/auth/session   -> user.name
+//    2. GET https://www.myfitnesspal.com/api/services/diary/read_diary
+//         ?username=<name>&date=YYYY-MM-DD                   -> meal items
+//       Sum each item's nutritional_contents into the day's totals.
 //
-//  Endpoint shapes follow python-myfitnesspal and the archived MFP v2
-//  docs. This is against MFP's ToS and can break anytime; cookies expire
+//  REQUIREMENT: the user's MFP "Diary Sharing" must be set to **Public**
+//  (read_diary returns 403 "You are not the diary user" otherwise, since
+//  the server can't tie our datacenter request to the diary owner).
+//
+//  This is against MFP's ToS and can break anytime; cookies expire
 //  (~30 days) so the user re-pastes occasionally. Keep ALL MFP-specific
 //  logic here so breakage is contained.
 //
 //  Public surface (unchanged, so index.ts needs no edits):
-//    cookieHeaderFor(token)          -> Cookie header string
-//    validateSession(cookie)         -> throws if the cookie can't mint a token
-//    fetchDiaryTotals(cookie,from,to)-> DiaryDay[]
+//    cookieHeaderFor(token)           -> Cookie header string
+//    validateSession(cookie)          -> throws if the cookie is invalid
+//    fetchDiaryTotals(cookie,from,to) -> DiaryDay[]
 // ============================================================
 
 const WEB = "https://www.myfitnesspal.com";
-const API = "https://api.myfitnesspal.com";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const SESSION_COOKIE = "__Secure-next-auth.session-token";
@@ -37,10 +39,6 @@ export interface DiaryDay {
   carbs: number | null;
   fat: number | null;
 }
-interface AuthData {
-  userId: string;
-  accessToken: string;
-}
 
 /** Build a Cookie header from a pasted token. Accepts the bare value or a
  *  full "name=value" pair (or several cookies) the user copied. */
@@ -50,52 +48,39 @@ export function cookieHeaderFor(pasted: string): string {
   return `${SESSION_COOKIE}=${v}`;
 }
 
+const baseHeaders = (cookie: string) => ({
+  "User-Agent": UA,
+  "Cookie": cookie,
+  "Accept": "application/json",
+  "Referer": `${WEB}/`,
+});
+
 function looksLikeCloudflare(body: string): boolean {
   return /Just a moment|cf-chl|challenge-platform|Attention Required|_cf_chl/i.test(body);
 }
 
-/** Exchange the session cookie for an API access token. */
-async function getAccessToken(cookie: string): Promise<AuthData> {
-  const res = await fetch(`${WEB}/user/auth_token?refresh=true`, {
-    headers: {
-      "User-Agent": UA,
-      "Cookie": cookie,
-      "Accept": "application/json",
-      "mfp-client-id": "mfp-main-js",
-      "Referer": `${WEB}/`,
-    },
-    redirect: "manual",
-  });
+/** Resolve the account's username (needed by read_diary) from the session. */
+async function getUsername(cookie: string): Promise<string> {
+  const res = await fetch(`${WEB}/api/auth/session`, { headers: baseHeaders(cookie) });
   const body = await res.text().catch(() => "");
   if (res.status === 403 || looksLikeCloudflare(body)) {
     throw new Error("Blocked by Cloudflare from the server (cookie may be valid, but MFP refused this IP).");
   }
-  if (res.status === 302 || res.status === 401 || res.status === 403) {
-    throw new Error("MyFitnessPal session expired or cookie invalid — log in again and paste a fresh session token.");
-  }
-  if (!res.ok) throw new Error(`MyFitnessPal auth_token request failed (HTTP ${res.status}).`);
-  let json: { user_id?: string; access_token?: string };
+  let json: { user?: { name?: string }; username?: string } = {};
   try {
     json = JSON.parse(body);
   } catch {
-    throw new Error("MyFitnessPal returned an unexpected auth response (cookie may be invalid or the login flow changed).");
+    throw new Error("MyFitnessPal session cookie invalid or expired — paste a fresh session token.");
   }
-  if (!json.access_token || !json.user_id) {
-    throw new Error("MyFitnessPal auth response was missing the access token — paste a fresh session cookie.");
+  const name = json.username || json.user?.name;
+  if (!name) {
+    throw new Error("MyFitnessPal session cookie invalid or expired — paste a fresh session token.");
   }
-  return { userId: json.user_id, accessToken: json.access_token };
+  return name;
 }
 
-const apiHeaders = (auth: AuthData) => ({
-  "User-Agent": UA,
-  "Accept": "application/json",
-  "Authorization": `Bearer ${auth.accessToken}`,
-  "mfp-client-id": "mfp-main-js",
-  "mfp-user-id": auth.userId,
-});
-
 interface NutritionalContents {
-  energy?: { unit?: string; value?: number };
+  energy?: { unit?: string; value?: number } | number;
   carbohydrates?: number;
   protein?: number;
   fat?: number;
@@ -105,25 +90,34 @@ interface DiaryItem {
   nutritional_contents?: NutritionalContents;
 }
 
-const kcal = (e?: { unit?: string; value?: number }): number | null => {
-  if (!e || e.value == null) return null;
-  // Energy may come back in kilojoules depending on the account's unit setting.
+const kcal = (e: NutritionalContents["energy"]): number | null => {
+  if (e == null) return null;
+  if (typeof e === "number") return e;
+  if (e.value == null) return null;
+  // Energy may be reported in kilojoules depending on the account's unit setting.
   return /kilojoule|kj/i.test(e.unit ?? "") ? e.value / 4.184 : e.value;
 };
 const round = (n: number | null): number | null => (n == null ? null : Math.round(n * 10) / 10);
 
-/** Fetch and sum one day's diary_meal nutrition. */
-async function fetchDiaryDay(auth: AuthData, date: string): Promise<DiaryDay> {
-  const qs = `entry_date=${date}&types=diary_meal&fields[]=nutritional_contents`;
-  const res = await fetch(`${API}/v2/diary?${qs}`, { headers: apiHeaders(auth) });
-  if (res.status === 401) throw new Error("MyFitnessPal token rejected — paste a fresh session cookie.");
-  if (res.status === 403) throw new Error("Blocked by Cloudflare from the server on the diary API.");
-  if (!res.ok) throw new Error(`MyFitnessPal diary API failed (HTTP ${res.status}).`);
-  const data = await res.json().catch(() => ({} as { items?: DiaryItem[] }));
-  const items: DiaryItem[] = Array.isArray(data.items) ? data.items : [];
+/** Fetch and sum one day's diary nutrition via the read_diary BFF route. */
+async function fetchDiaryDay(cookie: string, username: string, date: string): Promise<DiaryDay> {
+  const url = `${WEB}/api/services/diary/read_diary?username=${encodeURIComponent(username)}&date=${date}`;
+  const res = await fetch(url, { headers: baseHeaders(cookie) });
+  const body = await res.text().catch(() => "");
+  if (res.status === 403) {
+    throw new Error('MyFitnessPal returned 403 — set your Diary Sharing to "Public" (Settings → Diary Settings), then sync again.');
+  }
+  if (res.status === 401) throw new Error("MyFitnessPal session expired — paste a fresh session cookie.");
+  if (!res.ok) throw new Error(`MyFitnessPal diary request failed (HTTP ${res.status}).`);
+  let items: DiaryItem[] = [];
+  try {
+    const parsed = JSON.parse(body);
+    items = Array.isArray(parsed) ? parsed : (parsed.items ?? []);
+  } catch {
+    throw new Error("MyFitnessPal returned an unexpected diary response (their format may have changed).");
+  }
   let cal = 0, pro = 0, carb = 0, fat = 0, any = false;
   for (const it of items) {
-    if (it.type && it.type !== "diary_meal") continue;
     const n = it.nutritional_contents;
     if (!n) continue;
     any = true;
@@ -142,22 +136,21 @@ async function fetchDiaryDay(auth: AuthData, date: string): Promise<DiaryDay> {
   };
 }
 
-/** Confirm the cookie can mint an access token. Throws a clear error otherwise. */
+/** Confirm the cookie is a valid MFP session. Throws a clear error otherwise. */
 export async function validateSession(cookie: string): Promise<void> {
-  await getAccessToken(cookie);
+  await getUsername(cookie);
 }
 
-/** Fetch diary totals for an inclusive date range. One API call per day. */
+/** Fetch diary totals for an inclusive date range. One request per day. */
 export async function fetchDiaryTotals(
   cookie: string,
   from: string,
   to: string,
 ): Promise<DiaryDay[]> {
-  const auth = await getAccessToken(cookie);
+  const username = await getUsername(cookie);
   const out: DiaryDay[] = [];
   for (const date of dateRange(from, to)) {
-    const day = await fetchDiaryDay(auth, date);
-    // Only keep days that actually have logged nutrition.
+    const day = await fetchDiaryDay(cookie, username, date);
     if (day.calories != null || day.protein != null || day.carbs != null || day.fat != null) {
       out.push(day);
     }
