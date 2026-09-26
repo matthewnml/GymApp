@@ -174,7 +174,7 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
           </div>
         </div>
         <div class="card chartcard"><h2 id="strTitle">Estimated 1RM</h2><svg id="strChart" viewBox="0 0 320 180" preserveAspectRatio="none"></svg><div class="statrow" id="strStats"></div></div>
-        <div class="card"><h2>Recent sessions</h2><div id="strSessions"></div></div>
+        <div class="card"><h2 id="strSessTitle">Recent sessions</h2><div id="strSessions"></div></div>
       </div>
     </section>
     <section id="moreView" class="hidden">
@@ -247,7 +247,7 @@ let tDate=todayISO(), lDate=todayISO(), chartKey=null, pollTimer=null, rtChannel
 let segView='trends', strengthEx=null, strengthBP=null, dDate=todayISO();
 const MFP_FN=SUPABASE_URL+'/functions/v1/mfp-sync';
 
-const APP_VERSION='GymApp v7';
+const APP_VERSION='GymApp v8';
 $('#appVer').textContent=APP_VERSION;
 (function(){const s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s);})();
 $('#themeBtn').onclick=()=>{const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);localStorage.setItem('theme',nx);};
@@ -604,10 +604,15 @@ function renderStrength(){
   if(!bps.includes(strengthBP))strengthBP=bps[0];
   $('#bpSel').innerHTML=bps.map(bp=>`<option value="${esc(bp)}"${bp===strengthBP?' selected':''}>${esc(bp)} (${groups[bp].length})</option>`).join('');
   const list=groups[strengthBP];
-  if(!list.includes(strengthEx))strengthEx=list[0];
-  $('#exSel').innerHTML=list.map(e=>`<option value="${esc(e)}"${e===strengthEx?' selected':''}>${esc(e)}</option>`).join('');
-  $('#bpSel').onchange=()=>{strengthBP=$('#bpSel').value;strengthEx=null;renderStrength();};
+  const ALL='__ALL__';
+  if(strengthEx==null)strengthEx=ALL;                       // default to the body-part overview
+  if(strengthEx!==ALL && !list.includes(strengthEx))strengthEx=ALL;
+  $('#exSel').innerHTML=`<option value="${ALL}"${strengthEx===ALL?' selected':''}>▸ All ${esc(strengthBP)} (strength index)</option>`+
+    list.map(e=>`<option value="${esc(e)}"${e===strengthEx?' selected':''}>${esc(e)}</option>`).join('');
+  $('#bpSel').onchange=()=>{strengthBP=$('#bpSel').value;strengthEx=ALL;renderStrength();};
   $('#exSel').onchange=()=>{strengthEx=$('#exSel').value;renderStrength();};
+  if(strengthEx===ALL){renderBodyPartIndex(list);return;}
+  $('#strSessTitle').textContent='Recent sessions';
   const mine=SETS.filter(s=>s.exercise===strengthEx);
   // Best estimated 1RM per day.
   const byDay={};mine.forEach(s=>{if(s.est_1rm==null)return;const d=s.date;if(byDay[d]==null||s.est_1rm>byDay[d])byDay[d]=Number(s.est_1rm);});
@@ -629,6 +634,40 @@ function renderStrength(){
     const line=sets.map(s=>`${s.weight_kg!=null?s.weight_kg+'kg':'BW'}×${s.reps??'–'}`).join(', ');
     return `<div class="hitem"><div class="hd">${fmtShort(d)}</div><div class="hv"><span>${esc(line)}</span>${isPR&&byDay[d]!=null?'<span class="pr">PR</span>':''}</div></div>`;
   }).join('');
+}
+// Body-part strength index: each exercise indexed to its own first e1RM (=100),
+// then averaged across the body part's exercises over time (carry-forward).
+// Only exercises with 2+ weighted days count, so single points / bodyweight
+// moves don't flatten the trend. Data is sparse & gappy, so we plot by session
+// order (drawSeries spaces points evenly) rather than calendar-linear.
+function renderBodyPartIndex(list){
+  const perEx={};
+  list.forEach(ex=>{
+    const byDay={};
+    SETS.filter(s=>s.exercise===ex&&s.est_1rm!=null).forEach(s=>{const d=s.date;if(byDay[d]==null||s.est_1rm>byDay[d])byDay[d]=Number(s.est_1rm);});
+    const arr=Object.keys(byDay).sort().map(d=>({date:d,val:byDay[d]}));
+    if(arr.length>=2)perEx[ex]=arr;
+  });
+  const exNames=Object.keys(perEx);
+  $('#strTitle').textContent='Strength index — '+strengthBP+' (100 = baseline)';
+  $('#strSessTitle').textContent='Change per exercise';
+  if(!exNames.length){
+    $('#strChart').innerHTML='<text x="160" y="94" text-anchor="middle" fill="#8ba39c" font-size="12">Need an exercise with 2+ logged days</text>';
+    $('#strStats').innerHTML='<div class="empty">No exercise in '+esc(strengthBP)+' has 2+ weighted days yet. Pick a single exercise above, or log more.</div>';
+    $('#strSessions').innerHTML='';return;
+  }
+  const allDates=[...new Set(exNames.flatMap(ex=>perEx[ex].map(p=>p.date)))].sort();
+  const series=allDates.map(d=>{
+    let sum=0,n=0;
+    for(const ex of exNames){const arr=perEx[ex],base=arr[0].val;let latest=null;for(const p of arr){if(p.date<=d)latest=p.val;else break;}if(latest!=null&&base>0){sum+=latest/base*100;n++;}}
+    return {date:d,val:n?Math.round(sum/n*10)/10:100};
+  });
+  drawSeries($('#strChart'),series,100);
+  const vals=series.map(s=>s.val),latest=vals[vals.length-1],change=latest-100,best=Math.max(...vals);
+  const trend=change>1?'▲ up':change<-1?'▼ down':'→ flat';
+  $('#strStats').innerHTML=statBox('Index now',latest.toFixed(0))+statBox('Overall',(change>=0?'+':'')+change.toFixed(0)+'%')+statBox('Peak',best.toFixed(0))+statBox('Trend',trend);
+  const movers=exNames.map(ex=>{const a=perEx[ex];return {ex,pct:Math.round((a[a.length-1].val/a[0].val-1)*100)};}).sort((x,y)=>y.pct-x.pct);
+  $('#strSessions').innerHTML=movers.map(m=>`<div class="hitem"><div class="hd" style="width:auto;flex:1">${esc(m.ex)}</div><div class="hv"><b style="color:${m.pct>=0?'var(--accent)':'var(--danger)'}">${m.pct>=0?'+':''}${m.pct}%</b></div></div>`).join('');
 }
 
 /* ---------- Hevy CSV import (client-side, no secrets) ---------- */
