@@ -1,0 +1,6 @@
+# Supabase project config (Edge Functions).
+# mfp-sync handles auth itself: it validates the user's JWT for on-demand
+# calls and a shared x-cron-key header for scheduled runs, so the platform's
+# automatic JWT gate is turned off for this function.
+[functions.mfp-sync]
+verify_jwt = false
