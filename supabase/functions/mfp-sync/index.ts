@@ -76,7 +76,8 @@ async function syncAccount(userId: string, secretBlob: string, days: number): Pr
   const from = isoDaysAgo(Math.min(Math.max(days || 30, 1), 180));
   const to = isoDaysAgo(0);
   const cookie = cookieHeaderFor(creds.cookie);
-  const rows = await fetchDiaryTotals(cookie, from, to);
+  const rows = await fetchDiaryTotals(cookie, from, to); // every day in range
+  const MFP_KEYS = ["calories", "protein", "carbs", "fat"] as const;
   let synced = 0;
   for (const d of rows) {
     const patch: Record<string, number> = {};
@@ -84,15 +85,35 @@ async function syncAccount(userId: string, secretBlob: string, days: number): Pr
     if (d.protein != null) patch.protein = d.protein;
     if (d.carbs != null) patch.carbs = d.carbs;
     if (d.fat != null) patch.fat = d.fat;
-    if (!Object.keys(patch).length) continue;
+    const hasData = Object.keys(patch).length > 0;
+
     const { data: existing } = await admin.from("entries")
       .select("values").eq("user_id", userId).eq("date", d.date).maybeSingle();
-    const values = { ...(existing?.values ?? {}), ...patch };
-    const { error } = await admin.from("entries").upsert(
-      { user_id: userId, date: d.date, values, updated: new Date().toISOString() },
-      { onConflict: "user_id,date" },
-    );
-    if (!error) synced++;
+    const current = { ...(existing?.values ?? {}) } as Record<string, unknown>;
+
+    if (hasData) {
+      // Merge MFP totals in, preserving manual fields (weight/notes/etc).
+      const values = { ...current, ...patch };
+      const { error } = await admin.from("entries").upsert(
+        { user_id: userId, date: d.date, values, updated: new Date().toISOString() },
+        { onConflict: "user_id,date" },
+      );
+      if (!error) synced++;
+    } else if (existing) {
+      // No MFP data for this day: strip any previously-synced MFP fields so a
+      // bad earlier backfill gets cleaned up, but keep manual fields.
+      const hadMfp = MFP_KEYS.some((k) => current[k] != null);
+      if (!hadMfp) continue;
+      for (const k of MFP_KEYS) delete current[k];
+      if (Object.keys(current).length === 0) {
+        await admin.from("entries").delete().eq("user_id", userId).eq("date", d.date);
+      } else {
+        await admin.from("entries").upsert(
+          { user_id: userId, date: d.date, values: current, updated: new Date().toISOString() },
+          { onConflict: "user_id,date" },
+        );
+      }
+    }
   }
   await admin.from("integration_accounts").update({
     last_synced_at: new Date().toISOString(), last_error: null, status: "connected",
