@@ -183,12 +183,18 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
         <div class="savenote" id="hevyNote"></div>
       </div>
       <div class="card"><h2>Diet · MyFitnessPal</h2>
-        <div class="muted" style="margin-bottom:10px;font-size:13px">Unofficial sync — MyFitnessPal has no public API, so this can break if they change their site, and it's against MFP's terms. Your login is stored encrypted on the server and only used to fetch your diary totals.</div>
+        <div class="muted" style="margin-bottom:10px;font-size:13px">Unofficial sync — MFP has no public API and now blocks password logins, so we use your browser <b>session cookie</b>. It's stored encrypted and only used to read your diary totals. This is against MFP's terms and can break if they change their site or Cloudflare blocks the server.</div>
+        <details style="margin-bottom:10px"><summary class="muted" style="font-size:13px;cursor:pointer">How to get your session cookie</summary>
+          <ol class="muted" style="font-size:12px;padding-left:18px;margin:8px 0 0">
+            <li>On a desktop browser, log in at <b>myfitnesspal.com</b>.</li>
+            <li>Open DevTools (F12) → <b>Application</b> (Chrome) or <b>Storage</b> (Firefox) → <b>Cookies</b> → <code>https://www.myfitnesspal.com</code>.</li>
+            <li>Copy the value of <code>__Secure-next-auth.session-token</code> and paste it below.</li>
+          </ol>
+        </details>
         <div class="err" id="mfpErr"></div>
-        <label class="field"><span>MyFitnessPal email/username</span><input id="mfpUser" class="inp" autocomplete="off"></label>
-        <label class="field"><span>MyFitnessPal password</span><input id="mfpPass" class="inp" type="password" autocomplete="off" placeholder="stored encrypted, never shown again"></label>
+        <label class="field"><span>Session cookie (<code>__Secure-next-auth.session-token</code>)</span><textarea id="mfpCookie" class="inp" rows="3" autocomplete="off" placeholder="paste the cookie value here"></textarea></label>
         <div class="grid" style="grid-template-columns:1fr 1fr">
-          <button class="btn sec" id="mfpSave">Save login</button>
+          <button class="btn sec" id="mfpSave">Save &amp; verify</button>
           <button class="btn" id="mfpSync">Sync now</button>
         </div>
         <div class="savenote" id="mfpStatus"></div>
@@ -231,7 +237,7 @@ let tDate=todayISO(), lDate=todayISO(), chartKey=null, pollTimer=null, rtChannel
 let segView='trends', strengthEx=null;
 const MFP_FN=SUPABASE_URL+'/functions/v1/mfp-sync';
 
-const APP_VERSION='GymApp v3';
+const APP_VERSION='GymApp v4';
 $('#appVer').textContent=APP_VERSION;
 (function(){const s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s);})();
 $('#themeBtn').onclick=()=>{const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);localStorage.setItem('theme',nx);};
@@ -640,17 +646,16 @@ async function callMfp(action,body){
 async function renderIntegrations(){
   const st=$('#mfpStatus');
   try{const s=await callMfp('status',{});
-    $('#mfpUser').value=s.username||'';
     st.textContent=s.connected?`Connected${s.last_synced_at?' · last synced '+new Date(s.last_synced_at).toLocaleString():''}${s.last_error?' · error: '+s.last_error:''}`:'Not connected yet.';
   }catch(_){st.textContent='';}
 }
 $('#mfpSave').onclick=async()=>{
-  const username=$('#mfpUser').value.trim(),password=$('#mfpPass').value;$('#mfpErr').textContent='';
-  if(!username||!password){$('#mfpErr').textContent='Enter your MyFitnessPal login.';return;}
-  $('#mfpSave').disabled=true;
-  try{await callMfp('connect',{username,password});$('#mfpPass').value='';toast('Login saved');renderIntegrations();}
+  const cookie=$('#mfpCookie').value.trim();$('#mfpErr').textContent='';
+  if(!cookie){$('#mfpErr').textContent='Paste your MyFitnessPal session cookie.';return;}
+  $('#mfpSave').disabled=true;$('#mfpSave').textContent='Verifying…';
+  try{await callMfp('connect',{cookie});$('#mfpCookie').value='';toast('Cookie saved & verified');renderIntegrations();}
   catch(e){$('#mfpErr').textContent=e.message;}
-  $('#mfpSave').disabled=false;
+  $('#mfpSave').disabled=false;$('#mfpSave').textContent='Save & verify';
 };
 $('#mfpSync').onclick=async()=>{
   $('#mfpErr').textContent='';$('#mfpSync').disabled=true;$('#mfpSync').textContent='Syncing…';

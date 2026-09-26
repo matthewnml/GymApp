@@ -1,20 +1,28 @@
 // ============================================================
 //  MyFitnessPal unofficial client  (ISOLATED / FRAGILE MODULE)
 // ------------------------------------------------------------
-//  MyFitnessPal has NO public API — this logs in as the user and
-//  scrapes their diary totals. It is against MFP's Terms of Service
-//  and WILL break whenever MFP changes their site/markup. ALL
-//  MFP-specific logic lives here so breakage is contained: if a sync
-//  starts failing, this is the only file to fix (or swap out).
+//  MyFitnessPal has NO public API. As of 2025+ they use NextAuth +
+//  Cloudflare bot protection, so headless username/password login is
+//  dead. The only method that works is COOKIE AUTH: the user logs in
+//  at myfitnesspal.com in their own browser and pastes their session
+//  token; we send it with each request.
+//
+//  CAVEAT: this runs server-side (Deno, datacenter IP, non-browser TLS
+//  fingerprint) — Cloudflare may still block it. Errors below are made
+//  diagnostic so we can tell login-expired vs Cloudflare-blocked vs
+//  markup-changed. This is against MFP's ToS and can break anytime.
+//  ALL MFP-specific logic lives here so breakage is contained.
 //
 //  Public surface:
-//    login(username, password)  -> cookieHeader (string)
+//    cookieHeaderFor(token) -> Cookie header string
+//    validateSession(cookie) -> throws if not usable
 //    fetchDiaryTotals(cookie, from, to) -> DiaryDay[]
 // ============================================================
 
 const BASE = "https://www.myfitnesspal.com";
 const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const SESSION_COOKIE = "__Secure-next-auth.session-token";
 
 export interface DiaryDay {
   date: string; // YYYY-MM-DD
@@ -24,72 +32,50 @@ export interface DiaryDay {
   fat: number | null;
 }
 
-/** Pull cookies from one or more Set-Cookie headers into a Cookie request header. */
-function mergeCookies(prev: Record<string, string>, res: Response): Record<string, string> {
-  const jar = { ...prev };
-  // Deno exposes combined Set-Cookie via getSetCookie() when available.
-  const raw = (res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ??
-    (res.headers.get("set-cookie") ? [res.headers.get("set-cookie") as string] : []);
-  for (const line of raw) {
-    const [pair] = line.split(";");
-    const eq = pair.indexOf("=");
-    if (eq > 0) jar[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
-  }
-  return jar;
-}
-const cookieHeader = (jar: Record<string, string>) =>
-  Object.entries(jar).map(([k, v]) => `${k}=${v}`).join("; ");
+const browserHeaders = (cookie: string) => ({
+  "User-Agent": UA,
+  "Cookie": cookie,
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Upgrade-Insecure-Requests": "1",
+  "Referer": `${BASE}/`,
+});
 
-function firstMatch(re: RegExp, s: string): string | null {
-  const m = re.exec(s);
-  return m ? m[1] : null;
+/** Build a Cookie header from a pasted token. Accepts either the bare token
+ *  value or a full "name=value" pair the user copied. */
+export function cookieHeaderFor(pasted: string): string {
+  const v = pasted.trim();
+  if (v.includes("=")) return v; // user pasted name=value (or several cookies)
+  return `${SESSION_COOKIE}=${v}`;
 }
 
-/**
- * Log in with username + password. Returns a Cookie header string for
- * authenticated requests. Throws with a user-friendly message on failure.
- */
-export async function login(username: string, password: string): Promise<string> {
-  // 1) GET the login page for the CSRF/authenticity token + initial cookies.
-  const loginPage = await fetch(`${BASE}/account/login`, {
-    headers: { "User-Agent": UA },
-    redirect: "manual",
-  });
-  let jar = mergeCookies({}, loginPage);
-  const html = await loginPage.text();
-  const token =
-    firstMatch(/name="authenticity_token"[^>]*value="([^"]+)"/, html) ??
-    firstMatch(/name="csrf-token"\s+content="([^"]+)"/, html);
-  if (!token) {
-    throw new Error("Could not start MyFitnessPal login (page layout changed).");
-  }
+function looksLikeCloudflare(html: string): boolean {
+  return /Just a moment|cf-chl|challenge-platform|Attention Required|_cf_chl/i.test(html);
+}
+function looksLoggedOut(html: string): boolean {
+  return /account\/login|Log In to MyFitnessPal|next-auth\.session/i.test(html) &&
+    !/(printable|diary|Totals)/i.test(html);
+}
 
-  // 2) POST credentials.
-  const form = new URLSearchParams({
-    "utf8": "✓",
-    "authenticity_token": token,
-    "username": username,
-    "password": password,
-  });
-  const res = await fetch(`${BASE}/account/login`, {
-    method: "POST",
-    headers: {
-      "User-Agent": UA,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Cookie": cookieHeader(jar),
-      "Referer": `${BASE}/account/login`,
-    },
-    body: form.toString(),
-    redirect: "manual",
-  });
-  jar = mergeCookies(jar, res);
-
-  // A successful login redirects (302) away from /login and sets a session cookie.
-  const authed = Object.keys(jar).some((k) => /session|remember|_myfitnesspal/i.test(k));
-  if (res.status >= 400 || !authed) {
-    throw new Error("MyFitnessPal rejected the login (check username/password).");
+/** Fetch the printable diary (server-rendered HTML with a Totals row per day). */
+async function getDiaryHtml(cookie: string, from: string, to: string): Promise<string> {
+  const url = `${BASE}/reports/printable_diary/?from=${from}&to=${to}`;
+  const res = await fetch(url, { headers: browserHeaders(cookie), redirect: "manual" });
+  const body = await res.text().catch(() => "");
+  if (res.status === 403 || looksLikeCloudflare(body)) {
+    throw new Error("Blocked by Cloudflare from the server (cookie may be valid, but MFP is refusing this IP).");
   }
-  return cookieHeader(jar);
+  if (res.status === 302 || res.status === 401 || looksLoggedOut(body)) {
+    throw new Error("MyFitnessPal session expired or cookie invalid — log in again and paste a fresh session token.");
+  }
+  if (!res.ok) throw new Error(`MyFitnessPal diary request failed (HTTP ${res.status}).`);
+  return body;
+}
+
+/** Confirm the session cookie can reach an authed page. Throws a clear error otherwise. */
+export async function validateSession(cookie: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  await getDiaryHtml(cookie, today, today); // throws with a diagnostic message on failure
 }
 
 /** Parse a numeric cell like "1,234" or "56g" -> number. */
@@ -97,33 +83,21 @@ function toNum(cell: string): number | null {
   const n = Number(cell.replace(/[^0-9.\-]/g, ""));
   return isNaN(n) ? null : n;
 }
+function firstMatch(re: RegExp, s: string): string | null {
+  const m = re.exec(s);
+  return m ? m[1] : null;
+}
 
-/**
- * Fetch diary totals for an inclusive date range using the printable diary,
- * which renders a "Totals" row per day. Returns one DiaryDay per day found.
- *
- * NOTE: markup parsing is intentionally defensive but still the fragile part.
- */
+/** Fetch diary totals for an inclusive date range. Returns one DiaryDay per day. */
 export async function fetchDiaryTotals(
   cookie: string,
   from: string,
   to: string,
 ): Promise<DiaryDay[]> {
-  const url = `${BASE}/reports/printable_diary/?from=${from}&to=${to}`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA, "Cookie": cookie, "Accept": "text/html" },
-    redirect: "manual",
-  });
-  if (res.status === 302 || res.status === 401) {
-    throw new Error("MyFitnessPal session expired — re-save your login.");
-  }
-  if (!res.ok) throw new Error(`MyFitnessPal diary request failed (HTTP ${res.status}).`);
-  const html = await res.text();
-
+  const html = await getDiaryHtml(cookie, from, to);
   const out: DiaryDay[] = [];
-  // Each day block starts with a date heading, e.g. <h2>January 5, 2026</h2>,
-  // followed by a table whose <tr class="total"> holds the day's totals in the
-  // column order Calories, Carbs, Fat, Protein (MFP default).
+  // Each day is a <h2>Month D, YYYY</h2> heading followed by a table whose
+  // <tr class="total"> holds totals in column order Calories, Carbs, Fat, Protein.
   const blocks = html.split(/<h2[^>]*>/i).slice(1);
   for (const block of blocks) {
     const heading = block.slice(0, block.indexOf("</h2>"));
@@ -134,8 +108,7 @@ export async function fetchDiaryTotals(
     const cells = [...totalRow.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
       .map((m) => m[1].replace(/<[^>]+>/g, "").trim())
       .filter((c) => c !== "");
-    // cells[0] is the "Totals" label; nutrients follow in header order.
-    const nums = cells.slice(1).map(toNum);
+    const nums = cells.slice(1).map(toNum); // cells[0] is the "Totals" label
     out.push({
       date,
       calories: nums[0] ?? null,
@@ -143,6 +116,9 @@ export async function fetchDiaryTotals(
       fat: nums[2] ?? null,
       protein: nums[3] ?? null,
     });
+  }
+  if (!out.length && !/Totals/i.test(html)) {
+    throw new Error("Reached MyFitnessPal but found no diary totals (page layout may have changed).");
   }
   return out;
 }
