@@ -159,11 +159,20 @@ label.field{display:block;margin-bottom:12px}label.field span{display:block;font
           </div>
         </div>
         <div class="card chartcard"><h2 id="dietChartTitle">Calories</h2><svg id="dietChart" viewBox="0 0 320 180" preserveAspectRatio="none"></svg><div class="statrow" id="dietStats"></div></div>
-        <div class="card"><h2>Macros — last 7 logged days</h2><div id="macroBars"></div></div>
+        <div class="card"><h2>Day detail</h2>
+          <div class="datebar" style="margin-bottom:0"><button class="nav" id="dPrev">‹</button><div class="dsel"><div class="d1" id="dD1">—</div><div class="d2" id="dD2"></div><input type="date" class="datepick" id="dPick"></div><button class="nav" id="dNext">›</button></div>
+          <div class="statrow" id="dietDayStats" style="margin-top:12px"></div>
+        </div>
+        <div class="card"><h2>Macros — last 7 logged days (avg)</h2><div id="macroBars"></div></div>
       </div>
 
       <div id="segStrength" class="hidden">
-        <div class="chips" id="exChips"></div>
+        <div class="card" id="exPickCard">
+          <div class="grid" style="grid-template-columns:1fr 1fr">
+            <label class="field" style="margin:0"><span>Body part</span><select id="bpSel" class="inp"></select></label>
+            <label class="field" style="margin:0"><span>Exercise</span><select id="exSel" class="inp"></select></label>
+          </div>
+        </div>
         <div class="card chartcard"><h2 id="strTitle">Estimated 1RM</h2><svg id="strChart" viewBox="0 0 320 180" preserveAspectRatio="none"></svg><div class="statrow" id="strStats"></div></div>
         <div class="card"><h2>Recent sessions</h2><div id="strSessions"></div></div>
       </div>
@@ -235,10 +244,10 @@ function show(id){['loadView','authView','setPwView','appView'].forEach(v=>$('#'
 
 let ME=null, METRICS=[], MYENTRIES=[], SETS=[], view='today';
 let tDate=todayISO(), lDate=todayISO(), chartKey=null, pollTimer=null, rtChannel=null;
-let segView='trends', strengthEx=null;
+let segView='trends', strengthEx=null, strengthBP=null, dDate=todayISO();
 const MFP_FN=SUPABASE_URL+'/functions/v1/mfp-sync';
 
-const APP_VERSION='GymApp v6';
+const APP_VERSION='GymApp v7';
 $('#appVer').textContent=APP_VERSION;
 (function(){const s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s);})();
 $('#themeBtn').onclick=()=>{const cur=document.documentElement.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');const nx=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',nx);localStorage.setItem('theme',nx);};
@@ -545,6 +554,14 @@ function renderDiet(){
     if(goal){const hit=last7.filter(v=>Math.abs(v-goal)<=goal*0.1).length;onTarget=`${hit}/${last7.length}`;}
     $('#dietStats').innerHTML=statBox('Latest',latest)+statBox('7-day avg',avg)+(goal?statBox('On target (7d)',onTarget):statBox('Days logged',series.length));
   }
+  // Day detail — pick any date and see that day's calories + macros.
+  const de=MYENTRIES.find(x=>x.date===dDate),dv=de?de.values:{};
+  $('#dD1').innerHTML=fmtLong(dDate)+(dDate===todayISO()?'<span class="tag">TODAY</span>':'<span class="caret">▾</span>');
+  $('#dD2').textContent=dDate;$('#dPick').value=dDate;
+  const hasDay=['calories','protein','carbs','fat'].some(k=>dv[k]!=null);
+  $('#dietDayStats').innerHTML=hasDay
+    ? statBox('Calories',dv.calories!=null?Math.round(dv.calories):'—')+statBox('Protein',(dv.protein!=null?dv.protein:'—')+' g')+statBox('Carbs',(dv.carbs!=null?dv.carbs:'—')+' g')+statBox('Fat',(dv.fat!=null?dv.fat:'—')+' g')
+    : '<div class="empty">No diet logged for this day.</div>';
   // Macro breakdown for the last 7 logged days that have any macro data.
   const macroDays=MYENTRIES.filter(e=>['protein','carbs','fat'].some(k=>e.values[k]!=null)).slice(0,7);
   if(!macroDays.length){$('#macroBars').innerHTML='<div class="empty">No macros yet.</div>';return;}
@@ -558,15 +575,39 @@ function renderDiet(){
     seg('Protein',p,pc,'var(--accent)')+seg('Carbs',c,cc,'#5aa9e6')+seg('Fat',f,fc,'#e6a15a');
 }
 $('#saveGoal').onclick=()=>{const v=$('#calGoal').value.trim();if(v)localStorage.setItem(calGoalKey(),String(Number(v)));else localStorage.removeItem(calGoalKey());toast('Goal saved');renderDiet();};
+$('#dPrev').onclick=()=>{dDate=shift(dDate,-1);renderDiet();};
+$('#dNext').onclick=()=>{dDate=shift(dDate,1);renderDiet();};
+$('#dPick').onchange=e=>{if(e.target.value){dDate=e.target.value;renderDiet();}};
+$('#dPick').closest('.dsel').addEventListener('click',()=>openPicker('dPick'));
 
 /* ---------- Strength (Hevy-fed workout_sets) ---------- */
-function exerciseList(){return [...new Set(SETS.map(s=>s.exercise))].sort();}
+// Hevy's CSV has no muscle group, so classify by exercise name (keyword order matters).
+const BP_ORDER=['Chest','Back','Shoulders','Arms','Legs','Core','Other'];
+function classifyBodyPart(name){
+  const n=name.toLowerCase();
+  if(/face pull/.test(n))return 'Shoulders';
+  if(/rear delt|delt|lateral raise|shoulder press|overhead press|arnold|upright row|reverse fly/.test(n))return 'Shoulders';
+  if(/tricep|pushdown|skull|overhead .*extension|close grip/.test(n))return 'Arms';
+  if(/bicep|curl|preacher|hammer/.test(n))return 'Arms';
+  if(/wrist|forearm/.test(n))return 'Arms';
+  if(/bench press|chest|dip|push up|push-up|\bfly\b|crossover|pec/.test(n))return 'Chest';
+  if(/crunch|plank|\bab\b|abs|sit.?up|leg raise|russian twist|hanging|twist|core/.test(n))return 'Core';
+  if(/squat|leg press|leg extension|leg curl|lunge|calf|hip thrust|glute|hamstring|quad/.test(n))return 'Legs';
+  if(/row|pulldown|pull up|pull-up|pull down|\blat\b|chin up|back extension|shrug|deadlift|pull/.test(n))return 'Back';
+  return 'Other';
+}
 function renderStrength(){
-  const exs=exerciseList();
-  if(!exs.length){$('#exChips').innerHTML='';$('#strChart').innerHTML='';$('#strStats').innerHTML='<div class="empty">Import your Hevy CSV (More tab) to see strength progress.</div>';$('#strSessions').innerHTML='';return;}
-  if(!exs.includes(strengthEx))strengthEx=exs[0];
-  $('#exChips').innerHTML=exs.map(e=>`<button class="chip ${e===strengthEx?'on':''}" data-e="${esc(e)}">${esc(e)}</button>`).join('');
-  $$('#exChips .chip').forEach(c=>c.onclick=()=>{strengthEx=c.dataset.e;renderStrength();});
+  const exs=[...new Set(SETS.map(s=>s.exercise))].sort();
+  if(!exs.length){$('#bpSel').innerHTML='';$('#exSel').innerHTML='';$('#strChart').innerHTML='';$('#strStats').innerHTML='<div class="empty">Import your Hevy CSV (More tab) to see strength progress.</div>';$('#strSessions').innerHTML='';return;}
+  const groups={};exs.forEach(e=>{const bp=classifyBodyPart(e);(groups[bp]=groups[bp]||[]).push(e);});
+  const bps=Object.keys(groups).sort((a,b)=>BP_ORDER.indexOf(a)-BP_ORDER.indexOf(b));
+  if(!bps.includes(strengthBP))strengthBP=bps[0];
+  $('#bpSel').innerHTML=bps.map(bp=>`<option value="${esc(bp)}"${bp===strengthBP?' selected':''}>${esc(bp)} (${groups[bp].length})</option>`).join('');
+  const list=groups[strengthBP];
+  if(!list.includes(strengthEx))strengthEx=list[0];
+  $('#exSel').innerHTML=list.map(e=>`<option value="${esc(e)}"${e===strengthEx?' selected':''}>${esc(e)}</option>`).join('');
+  $('#bpSel').onchange=()=>{strengthBP=$('#bpSel').value;strengthEx=null;renderStrength();};
+  $('#exSel').onchange=()=>{strengthEx=$('#exSel').value;renderStrength();};
   const mine=SETS.filter(s=>s.exercise===strengthEx);
   // Best estimated 1RM per day.
   const byDay={};mine.forEach(s=>{if(s.est_1rm==null)return;const d=s.date;if(byDay[d]==null||s.est_1rm>byDay[d])byDay[d]=Number(s.est_1rm);});

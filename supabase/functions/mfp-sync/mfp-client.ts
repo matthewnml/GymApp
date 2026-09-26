@@ -87,6 +87,7 @@ interface NutritionalContents {
 }
 interface DiaryItem {
   type?: string;
+  date?: string;
   nutritional_contents?: NutritionalContents;
 }
 
@@ -101,7 +102,10 @@ const round = (n: number | null): number | null => (n == null ? null : Math.roun
 
 /** Fetch and sum one day's diary nutrition via the read_diary BFF route. */
 async function fetchDiaryDay(cookie: string, username: string, date: string): Promise<DiaryDay> {
-  const url = `${WEB}/api/services/diary/read_diary?username=${encodeURIComponent(username)}&date=${date}`;
+  // NOTE: the param is `entry_date`. A plain `date` param is silently ignored
+  // and MFP returns TODAY's diary for every request — which duplicates one day
+  // across the whole range. Do not "simplify" this back to `date`.
+  const url = `${WEB}/api/services/diary/read_diary?username=${encodeURIComponent(username)}&entry_date=${date}`;
   const res = await fetch(url, { headers: baseHeaders(cookie) });
   const body = await res.text().catch(() => "");
   if (res.status === 403) {
@@ -118,6 +122,8 @@ async function fetchDiaryDay(cookie: string, username: string, date: string): Pr
   }
   let cal = 0, pro = 0, carb = 0, fat = 0, any = false;
   for (const it of items) {
+    // Safety net: only count items actually dated to the requested day.
+    if (it.date && it.date !== date) continue;
     const n = it.nutritional_contents;
     if (!n) continue;
     any = true;
@@ -141,7 +147,9 @@ export async function validateSession(cookie: string): Promise<void> {
   await getUsername(cookie);
 }
 
-/** Fetch diary totals for an inclusive date range. One request per day. */
+/** Fetch diary totals for an inclusive date range. One request per day.
+ *  Returns EVERY day in range (days with no diary come back all-null) so the
+ *  caller can both write logged days and clean up previously-synced empty ones. */
 export async function fetchDiaryTotals(
   cookie: string,
   from: string,
@@ -150,10 +158,7 @@ export async function fetchDiaryTotals(
   const username = await getUsername(cookie);
   const out: DiaryDay[] = [];
   for (const date of dateRange(from, to)) {
-    const day = await fetchDiaryDay(cookie, username, date);
-    if (day.calories != null || day.protein != null || day.carbs != null || day.fat != null) {
-      out.push(day);
-    }
+    out.push(await fetchDiaryDay(cookie, username, date));
   }
   return out;
 }
