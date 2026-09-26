@@ -47,12 +47,17 @@ Sets are parsed in the browser, normalised to kg, deduplicated, and stored in
 buy Hevy Pro, an official-API sync can be added behind the same UI.
 
 ### Diet — MyFitnessPal (unofficial, requires the Edge Function)
-> ⚠️ MyFitnessPal has **no public API**. This integration logs in and scrapes the
-> diary — it is **against MFP's Terms of Service** and can break when MFP changes
-> their site. All MFP-specific code is isolated in
+> ⚠️ MyFitnessPal has **no public API**, and since 2025 uses NextAuth + Cloudflare,
+> so headless password login no longer works. This integration uses your **browser
+> session cookie** (`__Secure-next-auth.session-token`) to read your diary totals.
+> It is **against MFP's Terms of Service** and can break when MFP changes their site.
+> Because the sync runs from a datacenter IP with a non-browser TLS fingerprint,
+> **Cloudflare may block it server-side** even with a valid cookie — the app reports
+> exactly which failure occurred. All MFP-specific code is isolated in
 > [`supabase/functions/mfp-sync/mfp-client.ts`](supabase/functions/mfp-sync/mfp-client.ts)
-> so it's the only file to fix if it breaks. Credentials are stored **encrypted**
-> (AES-GCM) and only ever handled server-side.
+> so it's the only file to fix if it breaks. The cookie is stored **encrypted**
+> (AES-GCM) and only ever handled server-side; sessions expire, so it needs
+> re-pasting periodically.
 
 **Deploy the sync function** (needs the [Supabase CLI](https://supabase.com/docs/guides/cli)):
 
@@ -68,9 +73,10 @@ supabase secrets set CRON_KEY="<any long random string>"   # for scheduled sync
 supabase functions deploy mfp-sync
 ```
 
-Then in GymApp: **More → Diet · MyFitnessPal**, save your MFP login, and press
-**Sync now**. Totals are merged into your daily `entries` (manual fields like
-weight and notes are preserved).
+Then in GymApp: **More → Diet · MyFitnessPal**, paste your session cookie
+(instructions are in the app under "How to get your session cookie"), press
+**Save & verify**, then **Sync now**. Totals are merged into your daily `entries`
+(manual fields like weight and notes are preserved).
 
 **Optional — daily auto-sync** via `pg_cron` + `pg_net` (run once in SQL Editor):
 

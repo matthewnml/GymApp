@@ -1,8 +1,8 @@
 // ============================================================
 //  Edge Function: mfp-sync
 //  Actions (POST JSON { action, ... }):
-//    connect { username, password }  -> store encrypted MFP login
-//    status  {}                      -> { connected, username, last_synced_at, last_error }
+//    connect { cookie }              -> validate + store encrypted MFP session cookie
+//    status  {}                      -> { connected, last_synced_at, last_error }
 //    sync    { days }                -> pull last N days of diary totals into `entries`
 //
 //  Secrets required (supabase secrets set ...):
@@ -13,7 +13,7 @@
 //  at rest with AES-GCM using APP_ENC_KEY; plaintext never persists.
 // ============================================================
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { login, fetchDiaryTotals } from "./mfp-client.ts";
+import { cookieHeaderFor, validateSession, fetchDiaryTotals } from "./mfp-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,7 +75,7 @@ async function syncAccount(userId: string, secretBlob: string, days: number): Pr
   const creds = JSON.parse(await decrypt(secretBlob));
   const from = isoDaysAgo(Math.min(Math.max(days || 30, 1), 180));
   const to = isoDaysAgo(0);
-  const cookie = await login(creds.username, creds.password);
+  const cookie = cookieHeaderFor(creds.cookie);
   const rows = await fetchDiaryTotals(cookie, from, to);
   let synced = 0;
   for (const d of rows) {
@@ -124,11 +124,19 @@ Deno.serve(async (req) => {
 
   try {
     const userId = await currentUserId(req);
-    const { action, username, password, days } = await req.json().catch(() => ({}));
+    const { action, cookie, days } = await req.json().catch(() => ({}));
 
     if (action === "connect") {
-      if (!username || !password) return json({ error: "Missing username or password." }, 400);
-      const secret = await encrypt(JSON.stringify({ username, password }));
+      if (!cookie || String(cookie).trim().length < 20) {
+        return json({ error: "Paste your MyFitnessPal session cookie." }, 400);
+      }
+      // Validate the cookie works before storing it, so the user gets immediate feedback.
+      try {
+        await validateSession(cookieHeaderFor(String(cookie)));
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : "Could not validate cookie." }, 400);
+      }
+      const secret = await encrypt(JSON.stringify({ cookie: String(cookie).trim() }));
       const { error } = await admin.from("integration_accounts").upsert({
         user_id: userId, provider: PROVIDER, secret, status: "connected", last_error: null,
       }, { onConflict: "user_id,provider" });
@@ -138,14 +146,11 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       const { data } = await admin.from("integration_accounts")
-        .select("secret,last_synced_at,last_error,status")
+        .select("last_synced_at,last_error,status")
         .eq("user_id", userId).eq("provider", PROVIDER).maybeSingle();
       if (!data) return json({ connected: false });
-      let uname = "";
-      try { uname = JSON.parse(await decrypt(data.secret)).username; } catch { /* ignore */ }
       return json({
         connected: data.status === "connected",
-        username: uname,
         last_synced_at: data.last_synced_at,
         last_error: data.last_error,
       });
